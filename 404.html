@@ -1,0 +1,8 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Not found — redirecting…</title>
+<script>
+  // Send unknown URLs to the viewer; keep hash to allow deep-links
+  var h = location.hash || "";
+  location.replace("/web/viewer.html" + h);
+</script>
