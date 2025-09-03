@@ -1,20 +1,22 @@
-
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>TurboSign</title>
   <style>
+    :root { color-scheme: dark light; }
     html,body { margin:0; height:100%; background:#0b0c10; }
-    #viewer { border:0; width:100%; height:100%; background:#121418; }
+    /* iOS-friendly full-height */
+    #viewer { border:0; width:100%; height:100dvh; background:#121418; display:block; }
 
     /* Phones only (≤768px) — TurboSign bottom toolbar */
     @media (max-width:768px){
       .ts-bar{
         position:fixed; left:0; right:0; bottom:0; z-index:9999;
         display:flex; gap:10px; justify-content:space-between; align-items:center;
-        padding:10px 12px; background:rgba(15,17,21,.92); backdrop-filter:saturate(1.2) blur(6px);
+        padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+        background:rgba(15,17,21,.92); backdrop-filter:saturate(1.2) blur(6px);
         border-top:1px solid #20242c; font:14px/1 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       }
       .ts-btn{
@@ -25,16 +27,16 @@
       .ts-btn:active{ transform:translateY(1px); }
       .ts-btn svg{ width:22px; height:22px; display:block }
       .ts-file{ display:none }
-      /* keep content visible above dock */
-      body { padding-bottom:76px; }
+      /* keep viewer content above dock */
+      body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
     }
   </style>
 </head>
 <body>
-  <!-- Stock PDF.js Default UI -->
-  <iframe id="viewer" src="/web/viewer.html#zoom=page-width"></iframe>
+  <!-- Stock PDF.js Default UI (ESM build: /web + /build *.mjs) -->
+  <iframe id="viewer" src="/web/viewer.html#zoom=page-width" allow="clipboard-read; clipboard-write"></iframe>
 
-  <!-- TurboSign mobile toolbar (Thumbs removed) -->
+  <!-- Phone toolbar (no Thumbs) -->
   <div class="ts-bar" id="tsBar" aria-label="TurboSign mobile toolbar">
     <button class="ts-btn" id="tsOpen" title="Open">
       <svg viewBox="0 0 24 24" fill="none"><path d="M3 7h5l2 2h11v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" stroke="currentColor" stroke-width="1.6"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 2h6" stroke="currentColor" stroke-width="1.6"/></svg>
@@ -49,7 +51,7 @@
       <span>−</span>
     </button>
     <button class="ts-btn" id="tsZoomIn" title="Zoom in">
-      <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7.5" stroke="currentColor" stroke-width="1.6"/><path d="M11 8v6M8 11h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M20 20l-3-3" stroke="currentColor" stroke-width="1.6"/></svg>
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7.5" stroke="currentColor" stroke-width="1.6"/><path d="M11 8v6M8 11h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
       <span>+</span>
     </button>
     <button class="ts-btn" id="tsInk" title="Ink">
@@ -68,11 +70,25 @@
   </div>
 
   <script>
-    // Wire the mobile toolbar to the stock viewer (robust binding)
+    // Optional: register SW for offline if you ship /sw.js (it can precache *.mjs fine)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(console.error);
+    }
+
+    // iOS Safari: keep 100dvh sane on rotate/address bar changes
+    const viewerEl = document.getElementById('viewer');
+    const fitDvh = () => viewerEl && (viewerEl.style.height = Math.max(window.innerHeight, screen.height * 0.6) + 'px');
+    addEventListener('orientationchange', fitDvh, {passive:true});
+    addEventListener('resize', fitDvh, {passive:true});
+    fitDvh();
+
     (function(){
       const frame = document.getElementById('viewer');
       if (!frame) return;
 
+      let lastObjectURL = null;
+
+      // Wait for the ESM viewer to finish initializing
       function waitForApp(){
         return new Promise(resolve=>{
           const poll=()=>{ try{
@@ -83,6 +99,7 @@
         });
       }
 
+      // Convenience: try clicking a built-in control by id (if present)
       function clickInViewer(id){
         try{
           const d = frame.contentDocument;
@@ -92,84 +109,105 @@
         return false;
       }
 
-      // OPEN (local file)
+      // OPEN (local file) + revoke previous ObjectURL after load
       document.getElementById('tsOpen').onclick = ()=> document.getElementById('tsFile').click();
       document.getElementById('tsFile').onchange = (e)=>{
         const f = e.target.files && e.target.files[0]; if (!f) return;
-        const url = URL.createObjectURL(f);
-        frame.src = `/web/viewer.html?file=${encodeURIComponent(url)}#zoom=page-width`;
+        if (lastObjectURL) { URL.revokeObjectURL(lastObjectURL); lastObjectURL = null; }
+        lastObjectURL = URL.createObjectURL(f);
+        frame.src = `/web/viewer.html?file=${encodeURIComponent(lastObjectURL)}#zoom=page-width`;
+        waitForApp().then(app => app.eventBus?.on?.('documentloaded', ()=> {
+          if (lastObjectURL) { URL.revokeObjectURL(lastObjectURL); lastObjectURL = null; }
+          // run feature detection once a real doc is open
+          detectAndToggleEditorButtons(app);
+        }));
       };
 
-      // FIND
+      // FIND (focus the input to pop iOS keyboard)
       document.getElementById('tsFind').onclick = async ()=>{
-        if (!clickInViewer('viewFind')) {
-          const app = await waitForApp();
-          try { app.findBar.open(); } catch {}
-        }
+        const app = await waitForApp();
+        try { app.findBar?.open?.(); } catch {}
+        try { const d = frame.contentDocument; d.getElementById('findInput')?.focus(); } catch {}
       };
 
-      // ZOOM − / +
+      // ZOOM − / + (clamped & smooth)
       document.getElementById('tsZoomOut').onclick = async ()=>{
-        if (!clickInViewer('zoomOut')) {
-          const app = await waitForApp();
-          app.pdfViewer.currentScale = app.pdfViewer.currentScale / 1.1;
-        }
+        const app = await waitForApp();
+        const v = app.pdfViewer; const target = Math.max(0.1, v.currentScale / 1.1);
+        v.currentScale = +target.toFixed(3);
       };
       document.getElementById('tsZoomIn').onclick = async ()=>{
-        if (!clickInViewer('zoomIn')) {
-          const app = await waitForApp();
-          app.pdfViewer.currentScale = app.pdfViewer.currentScale * 1.1;
+        const app = await waitForApp();
+        const v = app.pdfViewer; const target = Math.min(5, v.currentScale * 1.1);
+        v.currentScale = +target.toFixed(3);
+      };
+
+      // INK: use built-in if the editor exists; otherwise hide button
+      document.getElementById('tsInk').onclick = async ()=>{
+        const app = await waitForApp();
+        if (clickInViewer('editorInk')) return;
+        if (app?.pdfViewer?.annotationEditorUIManager?.updateMode) {
+          app.pdfViewer.annotationEditorUIManager.updateMode('ink'); return;
+        }
+        alert('Ink is not available in this PDF.js build.');
+      };
+
+      // TEXT: use built-in if the editor exists; otherwise hide button
+      document.getElementById('tsText').onclick = async ()=>{
+        const app = await waitForApp();
+        if (clickInViewer('editorFreeText')) return;
+        if (app?.pdfViewer?.annotationEditorUIManager?.updateMode) {
+          app.pdfViewer.annotationEditorUIManager.updateMode('freetext'); return;
+        }
+        alert('Text is not available in this PDF.js build.');
+      };
+
+      // SAVE (robust; no dependency on hidden #download)
+      document.getElementById('tsSave').onclick = async () => {
+        const app = await waitForApp();
+        if (!app?.pdfDocument) { alert('Open a PDF first.'); return; }
+
+        try {
+          // Always get bytes from the ESM API
+          const bytes = await app.pdfDocument.getData(); // Uint8Array
+          const blob  = new Blob([bytes], { type:'application/pdf' });
+          const fname = (app._docFilename || app.baseUrl || 'document.pdf')
+                          .toString().split('/').pop().split('#')[0].split('?')[0] || 'document.pdf';
+
+          // iOS Safari ignores download attr: open a tab, user saves via Share
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+          const url = URL.createObjectURL(blob);
+          if (isIOS) {
+            window.open(url, '_blank');
+            setTimeout(()=>URL.revokeObjectURL(url), 15000);
+          } else {
+            const a = document.createElement('a');
+            a.href = url; a.download = fname;
+            document.body.appendChild(a); a.click(); a.remove();
+            URL.revokeObjectURL(url);
+          }
+        } catch (e) {
+          console.error(e);
+          alert('Save failed: ' + (e?.message || e));
         }
       };
 
-      // INK (annotation) — try toolbar id, then event bus/UI manager
-      document.getElementById('tsInk').onclick = async ()=>{
-        if (clickInViewer('editorInk')) return;
-        const app = await waitForApp();
+      // Hide Ink/Text buttons if the editor isn’t in your build
+      async function detectAndToggleEditorButtons(app){
         try {
-          // Newer builds expose a UI manager
-          app.pdfViewer?.annotationEditorUIManager?.updateMode?.('ink');
-          // Some builds use numeric modes; try that too
-          if (app.pdfViewer?.annotationEditorUIManager?.updateMode) return;
+          const hasUI = !!app?.pdfViewer?.annotationEditorUIManager;
+          const dom = frame.contentDocument;
+          const hasInkId  = !!dom?.getElementById('editorInk');
+          const hasTextId = !!dom?.getElementById('editorFreeText');
+
+          if (!hasUI && !hasInkId)  document.getElementById('tsInk').style.display  = 'none';
+          if (!hasUI && !hasTextId) document.getElementById('tsText').style.display = 'none';
         } catch {}
+      }
 
-        try {
-          // Event bus fallback (PDF.js viewer listens for this)
-          app.eventBus?.dispatch?.('switchannotationeditormode', { source: app, mode: 'ink' });
-        } catch {}
-
-        // If nothing worked, tell the user
-        setTimeout(() => {
-          if (!document.getElementById('viewer').contentDocument.getElementById('editorInk')) {
-            alert('Ink tool is not available in this PDF.js build.');
-          }
-        }, 100);
-      };
-
-      // TEXT (free text)
-      document.getElementById('tsText').onclick = async ()=>{
-        if (clickInViewer('editorFreeText')) return;
-        const app = await waitForApp();
-        try {
-          app.pdfViewer?.annotationEditorUIManager?.updateMode?.('freetext');
-          if (app.pdfViewer?.annotationEditorUIManager?.updateMode) return;
-        } catch {}
-
-        try {
-          app.eventBus?.dispatch?.('switchannotationeditormode', { source: app, mode: 'freetext' });
-        } catch {}
-
-        setTimeout(() => {
-          if (!document.getElementById('viewer').contentDocument.getElementById('editorFreeText')) {
-            alert('Text tool is not available in this PDF.js build.');
-          }
-        }, 100);
-      };
-
-      // SAVE (download)
-      document.getElementById('tsSave').onclick = ()=>{
-        if (!clickInViewer('download')) alert('Download button not found.');
-      };
+      // Run detection once the embedded viewer initializes (covers initial load without file)
+      waitForApp().then(detectAndToggleEditorButtons);
     })();
   </script>
 </body>
