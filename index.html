@@ -83,7 +83,7 @@
 
   <script>
     // Same-origin control helpers (no edits to viewer files required)
-    const frame = document.getElementById('viewer');
+    /* reuse existing frame ref from earlier script */
     const ready = new Promise(resolve => {
       const poll = () => {
         try{ const a = frame.contentWindow?.PDFViewerApplication; if(a && a.initializedPromise){a.initializedPromise.then(()=>resolve(a)); return;} }catch(e){}
@@ -185,9 +185,9 @@
     const modal = document.getElementById('sigModal');
     const openModal = () => { modal.classList.add('open'); modal.setAttribute('aria-hidden','false'); document.body.classList.add('modal-open'); try{ document.getElementById('viewer').style.pointerEvents='none'; }catch(_){} resizePad(); renderGallery(); if(!window.SignaturePad){ alert('SignaturePad failed to load. Check network / CDN.'); } };
     const closeModal = () => { modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); document.body.classList.remove('modal-open'); try{ document.getElementById('viewer').style.pointerEvents=''; }catch(_){} };
-    document.getElementById('sign').addEventListener('click', openModal);
-    document.getElementById('closeSig').addEventListener('click', closeModal);
-    document.getElementById('closeSig2').addEventListener('click', closeModal);
+    (function(){ const el=document.getElementById('sign'); if(el) el.addEventListener('click', openModal); })();
+    (function(){ const el=document.getElementById('closeSig'); if(el) el.addEventListener('click', closeModal); })();
+    (function(){ const el=document.getElementById('closeSig2'); if(el) el.addEventListener('click', closeModal); })();
 
     // Signature pad setup
     const padCanvas = document.getElementById('sigPad');
@@ -269,7 +269,7 @@
 
     (async ()=>{
       const app = await getApp();
-      const doc = frame.contentDocument;
+      const doc = frame && frame.contentDocument ? frame.contentDocument : document;
       const container = doc.getElementById('viewer'); // pages live here
       container.addEventListener('click', async (ev)=>{
         if (!placeMode || !currentSignature) return;
