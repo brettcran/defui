@@ -10,41 +10,57 @@
   </style>
 </head>
 <body>
+  <!-- Stock PDF.js UI -->
   <iframe id="viewer" src="/web/viewer.html#zoom=page-width"></iframe>
 
   <script>
-    // Inject bigger buttons CSS into the viewer, only on phones (≤768px)
-    (function () {
-      const frame = document.getElementById('viewer');
-      if (!frame) return;
+  // Phone-only toolbar layout (≤768px): wrap rows, add gaps, hide extras
+  (function () {
+    const frame = document.getElementById('viewer');
+    if (!frame) return;
 
-      function waitForApp() {
-        return new Promise(resolve => {
-          const poll = () => {
-            try {
-              const a = frame.contentWindow?.PDFViewerApplication;
-              if (a?.initializedPromise) return a.initializedPromise.then(()=>resolve(a));
-            } catch {}
-            setTimeout(poll, 50);
-          };
-          poll();
-        });
-      }
+    function waitForApp() {
+      return new Promise(resolve => {
+        const poll = () => {
+          try {
+            const a = frame.contentWindow?.PDFViewerApplication;
+            if (a?.initializedPromise) return a.initializedPromise.then(() => resolve(a));
+          } catch {}
+          setTimeout(poll, 50);
+        };
+        poll();
+      });
+    }
 
-      (async () => {
-        await waitForApp();
-        const doc = frame.contentDocument;
-        if (!doc) return;
+    (async () => {
+      await waitForApp();
+      const doc = frame.contentDocument;
+      if (!doc) return;
 
-        const style = doc.createElement('style');
-        style.textContent = `
+      const style = doc.createElement('style');
+      style.id = 'turbosign-mobile-toolbar';
+      style.textContent = `
+/* ---------- Phones only ---------- */
 @media (max-width: 768px) {
+  /* Overall toolbar spacing */
+  #toolbarContainer { padding: 6px 8px; }
+
+  /* Wrap toolbar into rows with gaps */
+  #toolbarViewer { display: flex; flex-wrap: wrap; row-gap: 10px; }
+  #toolbarViewerLeft,
+  #toolbarViewerMiddle,
+  #toolbarViewerRight {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    flex: 1 1 100%;
+    align-items: center;
+  }
+
+  /* Bigger touch targets */
   .toolbarButton,
   .dropdownToolbarButton,
   .secondaryToolbarButton,
   .overlayButton {
-    min-height: 46px;
-    min-width: 46px;
+    min-height: 44px; min-width: 44px;
     padding: 10px 12px;
     font-size: 16px;
   }
@@ -52,15 +68,43 @@
   .secondaryToolbarButton::before,
   .overlayButton::before {
     width: 22px; height: 22px;
+    margin-right: 6px;
     background-size: 22px 22px;
     -webkit-mask-size: 22px 22px;
             mask-size: 22px 22px;
   }
+
+  /* Inputs bigger */
+  #pageNumber { height: 44px; font-size: 16px; }
+  #findInput  { height: 44px; font-size: 16px; }
+
+  /* Hide lower-value buttons on phones */
+  #openFile,
+  #viewBookmark,
+  #presentationMode,
+  #secondaryToolbarToggle,
+  #documentProperties,
+  #toggleHandTool,
+  #editorFreeText,
+  #editorInk,
+  #editorStamp,
+  #editorHighlight,
+  #editorTextHighlightToolButton,
+  #editorTextUnderlineToolButton,
+  #editorTextStrikeThroughToolButton {
+    display: none !important;
+  }
+
+  /* Hide zoom dropdown, keep +/- */
+  #scaleSelectContainer { display: none !important; }
+
+  /* Sidebar: make it wider for thumbs */
+  #sidebarContainer { width: min(85vw, 340px); }
 }
-        `;
-        doc.head.appendChild(style);
-      })();
+      `;
+      doc.head.appendChild(style);
     })();
+  })();
   </script>
 </body>
 </html>
