@@ -33,6 +33,28 @@
       .dock{display:none}
     }
   </style>
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <style>
+    /* Signature modal */
+    .modal{position:fixed;inset:0;display:none;place-items:center;background:rgba(0,0,0,.55);z-index:20}
+    .modal.open{display:grid}
+    .sheet{width:min(92vw,900px);max-height:min(88vh,900px);display:grid;grid-template-rows:auto 1fr auto;background:#0f1115;border:1px solid #263041;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.6)}
+    .sheet header{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid #1b1e24}
+    .sheet header h3{margin:0;font-size:16px}
+    .sheet main{display:grid;gap:12px;padding:12px;overflow:auto}
+    .sig-row{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+    .pad{background:#11161e;border:1px dashed #334; border-radius:12px; height:260px; position:relative}
+    .pad canvas{width:100%;height:100%;display:block;border-radius:12px}
+    .tools{display:flex;flex-wrap:wrap;gap:8px}
+    .tools .btn{background:#1a1d24;color:#e8eaed;border:1px solid #2a2f39;padding:8px 10px;border-radius:10px;cursor:pointer}
+    .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+    .thumb{background:#141922;border:1px solid #2a2f39;border-radius:10px;padding:6px;display:grid;gap:6px;cursor:pointer}
+    .thumb.selected{outline:2px solid #4da3ff}
+    .thumb img{width:100%;height:90px;object-fit:contain;background:#0b0c10;border-radius:6px}
+    .sheet footer{display:flex;justify-content:flex-end;gap:8px;padding:12px 14px;border-top:1px solid #1b1e24}
+    .danger{border-color:#6b2c2c;background:#2a1414}
+  </style>
 </head>
 <body>
   <div class="app">
@@ -42,6 +64,9 @@
       <input id="file" class="file" type="file" accept="application/pdf" />
       <button id="fit" class="btn" aria-label="Fit width">Fit</button>
       <button id="thumbs" class="btn" aria-label="Thumbnails">Thumbs</button>
+      <button id="sign" class="btn" aria-label="Open signature modal">Sign</button>
+      <button id="place" class="btn" aria-label="Place signature">Place</button>
+      <button id="export" class="btn" aria-label="Export signed PDF">Export</button>
     </header>
     <main class="main">
       <!-- IMPORTANT: host pdf.js dist under /pdfjs for same-origin control -->
@@ -102,6 +127,211 @@
 
     // iOS Safari: keep 100dvh on rotate
     addEventListener('orientationchange', ()=>{ document.documentElement.style.height = '100dvh'; });
+  </script>
+  
+  <!-- Signature Modal (app shell overlay; PDF.js remains untouched) -->
+  <div id="sigModal" class="modal" aria-hidden="true" role="dialog" aria-label="Signature">
+    <div class="sheet" role="document">
+      <header>
+        <h3>Create / Manage Signatures</h3>
+        <div style="flex:1"></div>
+        <button id="closeSig" class="btn" aria-label="Close">Close</button>
+      </header>
+      <main>
+        <div class="sig-row">
+          <div>
+            <div class="pad"><canvas id="sigPad"></canvas></div>
+            <div class="tools" style="margin-top:8px">
+              <button id="penBlack" class="btn">Black</button>
+              <button id="penBlue" class="btn">Blue</button>
+              <button id="penThick" class="btn">Thicker</button>
+              <button id="penThin" class="btn">Thinner</button>
+              <button id="clearPad" class="btn danger">Clear</button>
+            </div>
+          </div>
+          <div>
+            <div class="tools" style="justify-content:space-between">
+              <strong>Saved Signatures</strong>
+              <div>
+                <button id="saveSig" class="btn">Save</button>
+                <button id="useSig" class="btn">Use Selected</button>
+                <button id="deleteSig" class="btn danger">Delete</button>
+              </div>
+            </div>
+            <div id="sigGallery" class="gallery" style="margin-top:8px"></div>
+          </div>
+        </div>
+      </main>
+      <footer>
+        <div style="margin-right:auto;color:#aab2c0">Tip: draw on the left, select on the right, then “Use Selected” and click Place to position it.</div>
+        <button id="closeSig2" class="btn">Done</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- libs for signing/export (no changes to PDF.js files) -->
+  <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.5/dist/signature_pad.umd.min.js"></script>
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+
+  <script>
+    // ===== Signature Modal + Placement + Export =====
+    const LS_KEY = 'ts_signatures_v1';
+    let currentSignature = null; // dataURL of the signature chosen for placement
+    let placeMode = false;       // when true, clicks in the viewer place a signature
+    let placements = [];         // {pageNumber, xPts, yPts, wPts, hPts, dataURL}
+
+    // Modal open/close
+    const modal = document.getElementById('sigModal');
+    const openModal = () => { modal.classList.add('open'); modal.setAttribute('aria-hidden','false'); resizePad(); renderGallery(); };
+    const closeModal = () => { modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); };
+    document.getElementById('sign').addEventListener('click', openModal);
+    document.getElementById('closeSig').addEventListener('click', closeModal);
+    document.getElementById('closeSig2').addEventListener('click', closeModal);
+
+    // Signature pad setup
+    const padCanvas = document.getElementById('sigPad');
+    let penWidth = 2.5, penColor = '#111';
+    let sigPad;
+    function resizePad(){
+      const dpr = Math.max(window.devicePixelRatio||1, 1);
+      const rect = padCanvas.getBoundingClientRect();
+      padCanvas.width = rect.width * dpr;
+      padCanvas.height = rect.height * dpr;
+      const ctx = padCanvas.getContext('2d');
+      ctx.scale(dpr,dpr);
+      if (sigPad) sigPad.clear();
+      sigPad = new SignaturePad(padCanvas, { minWidth: penWidth, maxWidth: penWidth+0.8, penColor });
+    }
+    new ResizeObserver(resizePad).observe(padCanvas.parentElement);
+
+    document.getElementById('penBlack').onclick = () => { penColor = '#111'; sigPad.penColor = penColor; };
+    document.getElementById('penBlue').onclick  = () => { penColor = '#0d5bd6'; sigPad.penColor = penColor; };
+    document.getElementById('penThick').onclick = () => { penWidth = Math.min(6, penWidth+0.8); sigPad.minWidth = penWidth; sigPad.maxWidth = penWidth+0.8; };
+    document.getElementById('penThin').onclick  = () => { penWidth = Math.max(1, penWidth-0.8); sigPad.minWidth = penWidth; sigPad.maxWidth = penWidth+0.8; };
+    document.getElementById('clearPad').onclick = () => sigPad.clear();
+
+    // Gallery handling
+    function getSigs(){ try { return JSON.parse(localStorage.getItem(LS_KEY)||'[]'); } catch { return []; } }
+    function setSigs(arr){ localStorage.setItem(LS_KEY, JSON.stringify(arr)); }
+    function renderGallery(){
+      const g = document.getElementById('sigGallery');
+      g.innerHTML = '';
+      const sigs = getSigs();
+      sigs.forEach((dataURL, idx) => {
+        const d = document.createElement('div'); d.className = 'thumb'; d.dataset.idx = idx;
+        const img = new Image(); img.src = dataURL; d.appendChild(img);
+        const actions = document.createElement('div'); actions.style.display='flex'; actions.style.justifyContent='space-between'; actions.style.fontSize='12px'; actions.style.color='#aab2c0';
+        actions.innerHTML = `<span>#${idx+1}</span><span>${Math.round((dataURL.length/1024))} KB</span>`;
+        d.appendChild(actions);
+        d.addEventListener('click', () => {
+          document.querySelectorAll('.thumb.selected').forEach(el=>el.classList.remove('selected'));
+          d.classList.add('selected'); currentSignature = dataURL;
+        });
+        g.appendChild(d);
+      });
+    }
+
+    document.getElementById('saveSig').onclick = () => {
+      if (sigPad.isEmpty()) { alert('Draw a signature first.'); return; }
+      const dataURL = sigPad.toDataURL('image/png');
+      const sigs = getSigs(); sigs.push(dataURL); setSigs(sigs); renderGallery();
+    };
+    document.getElementById('useSig').onclick = () => {
+      if (!currentSignature) { alert('Select a saved signature on the right.'); return; }
+      closeModal(); enablePlaceMode(true);
+    };
+    document.getElementById('deleteSig').onclick = () => {
+      const sel = document.querySelector('.thumb.selected'); if (!sel) { alert('Select a signature to delete.'); return; }
+      const idx = +sel.dataset.idx; const sigs = getSigs(); sigs.splice(idx,1); setSigs(sigs); currentSignature = null; renderGallery();
+    };
+
+    // Placement mode toggles
+    const placeBtn = document.getElementById('place');
+    const mPlaceBtn = document.getElementById('mPlace');
+    function enablePlaceMode(on){
+      placeMode = !!on;
+      placeBtn?.classList.toggle('active', placeMode);
+      mPlaceBtn?.classList.toggle('active', placeMode);
+      if (placeMode && !currentSignature) openModal();
+    }
+    placeBtn?.addEventListener('click', ()=> enablePlaceMode(!placeMode));
+    mPlaceBtn?.addEventListener('click', ()=> enablePlaceMode(!placeMode));
+
+    // Hook clicks inside the viewer pages
+    const frame = document.getElementById('viewer');
+    async function getApp(){
+      return new Promise(res=>{
+        const poll=()=>{ try{ const a=frame.contentWindow?.PDFViewerApplication; if(a?.initializedPromise){a.initializedPromise.then(()=>res(a)); return;} }catch(e){} setTimeout(poll,50);};
+        poll();
+      });
+    }
+
+    (async ()=>{
+      const app = await getApp();
+      const doc = frame.contentDocument;
+      const container = doc.getElementById('viewer'); // pages live here
+      container.addEventListener('click', async (ev)=>{
+        if (!placeMode || !currentSignature) return;
+        const pageDiv = ev.target.closest('.page');
+        if (!pageDiv) return;
+        const pageNum = +pageDiv.getAttribute('data-page-number');
+        const rect = pageDiv.getBoundingClientRect();
+        const xPx = ev.clientX - rect.left;
+        const yPx = ev.clientY - rect.top;
+
+        const pageView = app.pdfViewer.getPageView(pageNum-1);
+        const vp = pageView.viewport; // scale maps PDF points -> CSS px
+        const xPts = xPx / vp.scale;
+        const yPts = (vp.height) - (yPx / vp.scale);
+
+        // Default signature display width in CSS px → convert to points
+        const displayPx = Math.min( Math.max(rect.width * 0.35, 160), 360 );
+        const wPts = displayPx / vp.scale;
+
+        // Render a visual overlay inside the page div for immediate feedback
+        pageDiv.style.position = 'relative';
+        const img = new Image(); img.src = currentSignature; img.alt = 'signature';
+        img.style.position = 'absolute';
+        img.style.width = displayPx + 'px';
+        img.style.left = (xPx - displayPx/2) + 'px';
+        img.style.top  = (yPx - displayPx*0.35) + 'px';
+        img.style.pointerEvents = 'none';
+        img.style.opacity = '0.95';
+        pageDiv.appendChild(img);
+
+        placements.push({ pageNumber: pageNum, xPts, yPts, wPts, dataURL: currentSignature });
+      }, {passive:true});
+    })();
+
+    // Export signed PDF (flatten signatures)
+    document.getElementById('export').addEventListener('click', async () => {
+      try {
+        const app = await getApp();
+        if (!app?.pdfDocument) { alert('No PDF loaded.'); return; }
+        const bytes = await app.pdfDocument.getData(); // Uint8Array
+        const pdfDoc = await PDFLib.PDFDocument.load(bytes);
+
+        for (const p of placements) {
+          const page = pdfDoc.getPage(p.pageNumber - 1);
+          const png = await pdfDoc.embedPng(p.dataURL);
+          const pngDims = png.scale(1);
+          const aspect = pngDims.height / pngDims.width;
+          const width = p.wPts;
+          const height = width * aspect;
+          page.drawImage(png, { x: p.xPts - width/2, y: p.yPts - height/2, width, height });
+        }
+
+        const out = await pdfDoc.save();
+        const blob = new Blob([out], { type: 'application/pdf' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'signed.pdf';
+        a.click();
+      } catch (e) {
+        console.error(e);
+        alert('Export failed: ' + (e?.message||e));
+      }
+    });
   </script>
 </body>
 </html>
