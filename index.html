@@ -1,0 +1,9 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>TurboSign</title>
+<script>
+  // Forward / to /web/viewer.html preserving ?query and #hash
+  var q = location.search || "";
+  var h = location.hash || "";
+  location.replace("/web/viewer.html" + q + h);
+</script>
