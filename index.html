@@ -1,9 +1,107 @@
 <!doctype html>
-<meta charset="utf-8">
-<title>TurboSign</title>
-<script>
-  // Forward / to /web/viewer.html preserving ?query and #hash
-  var q = location.search || "";
-  var h = location.hash || "";
-  location.replace("/web/viewer.html" + q + h);
-</script>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1115" />
+  <title>TurboSign — Mobile Viewer</title>
+  <style>
+    :root{
+      --bg:#0b0c10;--fg:#e8eaed;--muted:#aab2c0;--accent:#4da3ff;--bar:#0f1115;--border:#1b1e24
+    }
+    html,body{height:100%;margin:0}
+    body{background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+
+    /* Layout: compact top bar on mobile, persistent on desktop */
+    .app{display:grid;grid-template-rows:52px 1fr;height:100dvh}
+    .topbar{display:flex;align-items:center;gap:8px;padding:0 8px;background:var(--bar);border-bottom:1px solid var(--border)}
+    .brand{font-weight:600}
+    .spacer{flex:1}
+    .btn,.file{background:#1a1d24;color:var(--fg);border:1px solid #2a2f39;padding:8px 10px;border-radius:10px;font:inherit}
+    .btn{cursor:pointer}
+
+    /* Main area */
+    .main{position:relative}
+    iframe{position:absolute;inset:0;border:0;width:100%;height:100%}
+
+    /* Bottom mobile actions */
+    .dock{position:fixed;left:0;right:0;bottom:0;display:flex;gap:8px;justify-content:center;padding:10px;z-index:5}
+    .dock .btn{background:var(--accent);color:#001022;border:0;font-weight:700}
+
+    @media(min-width:900px){
+      .app{grid-template-rows:56px 1fr}
+      .dock{display:none}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">TurboSign</div>
+      <div class="spacer"></div>
+      <input id="file" class="file" type="file" accept="application/pdf" />
+      <button id="fit" class="btn" aria-label="Fit width">Fit</button>
+      <button id="thumbs" class="btn" aria-label="Thumbnails">Thumbs</button>
+    </header>
+    <main class="main">
+      <!-- IMPORTANT: host pdf.js dist under /pdfjs for same-origin control -->
+      <iframe id="viewer" src="/web/viewer.html#zoom=page-width"></iframe>
+      <!-- Mobile quick actions -->
+      <div class="dock">
+        <button id="mPrev" class="btn">Prev</button>
+        <button id="mNext" class="btn">Next</button>
+        <button id="mDl" class="btn">Download</button>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Same-origin control helpers (no edits to viewer files required)
+    const frame = document.getElementById('viewer');
+    const ready = new Promise(resolve => {
+      const poll = () => {
+        try{ const a = frame.contentWindow?.PDFViewerApplication; if(a && a.initializedPromise){a.initializedPromise.then(()=>resolve(a)); return;} }catch(e){}
+        setTimeout(poll,50);
+      }; poll();
+    });
+
+    // Mobile niceties on load
+    (async()=>{
+      const app = await ready;
+      // If on a narrow screen, hide sidebar and fit width
+      if (matchMedia('(max-width: 900px)').matches){
+        try { app.pdfSidebar.close(); } catch(_){}
+        app.pdfViewer.currentScaleValue = 'page-width';
+      }
+    })();
+
+    // Controls
+    document.getElementById('fit').addEventListener('click', async()=>{
+      (await ready).pdfViewer.currentScaleValue = 'page-width';
+    });
+    document.getElementById('thumbs').addEventListener('click', async()=>{
+      const a = await ready; const s = a.pdfSidebar; s.isOpen ? s.close() : (s.open(), s.switchView(1));
+    });
+
+    // Mobile dock
+    document.getElementById('mPrev').addEventListener('click', async()=>{
+      const a = await ready; a.page = Math.max(1, a.page - 1);
+    });
+    document.getElementById('mNext').addEventListener('click', async()=>{
+      const a = await ready; a.page = Math.min(a.pagesCount, a.page + 1);
+    });
+    document.getElementById('mDl').addEventListener('click', async()=>{
+      await ready; frame.contentDocument.getElementById('download').click();
+    });
+
+    // File open (works offline)
+    document.getElementById('file').addEventListener('change', (e)=>{
+      const f = e.target.files?.[0]; if(!f) return; const url = URL.createObjectURL(f);
+      frame.src = `/web/viewer.html?file=${encodeURIComponent(url)}#zoom=page-width`;
+    });
+
+    // iOS Safari: keep 100dvh on rotate
+    addEventListener('orientationchange', ()=>{ document.documentElement.style.height = '100dvh'; });
+  </script>
+</body>
+</html>
