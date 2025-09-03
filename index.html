@@ -10,6 +10,11 @@
   </style>
 </head>
 <body>
+  <script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(console.error);
+}
+</script>
   <!-- Stock PDF.js UI -->
   <iframe id="viewer" src="/web/viewer.html#zoom=page-width"></iframe>
 
