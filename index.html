@@ -2,60 +2,35 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <!-- Keep the outer page from doing dumb zoom tricks on iOS -->
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
   <title>TurboSign</title>
   <style>
-    html, body { margin:0; height:100%; background:#0b0c10; }
-    /* iOS-friendly full height */
-    #viewer { display:block; width:100%; height:100dvh; border:0; background:#121418; }
+    html, body { margin: 0; height: 100%; }
+    /* Full-height viewer shell */
+    #viewer { display: block; width: 100%; height: 100dvh; border: 0; background: #121418; }
   </style>
 </head>
 <body>
-  <!-- Load the STOCK Mozilla viewer; we’ll tune it from here -->
-  <iframe id="viewer" src="/web/viewer.html#zoom=page-width" allow="clipboard-read; clipboard-write"></iframe>
+  <!-- Load the STOCK Mozilla viewer -->
+  <iframe id="viewer" src="/web/viewer.html#zoom=page-width"></iframe>
 
   <script>
-    // ===== Outer-page hardening (no page zoom; only the PDF should zoom) =====
-    ['gesturestart','gesturechange','gestureend','dblclick'].forEach(t=>{
-      addEventListener(t, e=>e.preventDefault(), { passive:false });
-    });
-    (function(){ let last=0;
-      addEventListener('touchend', e=>{ const now=Date.now(); if (now-last<300) e.preventDefault(); last=now; }, { passive:false });
-    })();
+    (function () {
+      const frame = document.getElementById('viewer');
 
-    // Keep iframe full height across iOS URL bar show/hide + rotation
-    const frame = document.getElementById('viewer');
-    const fitDvh = () => { frame.style.height = Math.max(window.innerHeight, screen.height*0.6) + 'px'; };
-    addEventListener('resize', fitDvh, { passive:true });
-    addEventListener('orientationchange', fitDvh, { passive:true });
-    fitDvh();
-
-    // ===== Inject fixes directly into the viewer (same-origin) =====
-    frame.addEventListener('load', () => {
-      try {
+      // Inject mobile sizing into the viewer after it loads.
+      function inject() {
         const doc = frame.contentDocument;
-        if (!doc) return;
+        if (!doc || doc.getElementById('ts-mobile-sizing')) return;
 
-        // 1) Prevent page-level zoom INSIDE the viewer (Safari double-tap/pinch)
-        const blockScript = doc.createElement('script');
-        blockScript.textContent = `
-          ['gesturestart','gesturechange','gestureend','dblclick'].forEach(t=>{
-            window.addEventListener(t, e=>e.preventDefault(), { passive:false });
-          });
-          (function(){ let last=0;
-            window.addEventListener('touchend', e=>{ const now=Date.now(); if (now-last<300) e.preventDefault(); last=now; }, { passive:false });
-          })();
-          try { document.documentElement.style.touchAction='manipulation'; document.body.style.touchAction='manipulation'; } catch {}
-        `;
-        (doc.head || doc.documentElement).appendChild(blockScript);
-
-        // 2) Make EVERY default toolbar button finger-sized on mobile (main + secondary)
-        const css = `
+        const style = doc.createElement('style');
+        style.id = 'ts-mobile-sizing';
+        style.textContent = `
           @media (max-width: 768px) {
+            /* Taller main toolbar */
             #toolbarContainer { height: 72px !important; }
 
-            /* Main toolbar buttons + split buttons + secondary toggle */
+            /* Make ALL stock buttons finger-sized (main + split + secondary) */
             #toolbarViewerLeft .toolbarButton,
             #toolbarViewerMiddle .toolbarButton,
             #toolbarViewerRight .toolbarButton,
@@ -69,7 +44,7 @@
               line-height: 1 !important;
             }
 
-            /* Scale the sprite/mask-based icons inside buttons */
+            /* Scale the mask/sprite icons so they aren’t tiny in bigger buttons */
             .toolbarButton::before,
             .secondaryToolbarButton::before,
             .overlayButton::before {
@@ -81,52 +56,34 @@
               margin: 0 auto !important;
             }
 
-            /* Split-button separators */
+            /* Split-button separator size */
             .splitToolbarButtonSeparator {
               height: 40px !important;
               margin: 0 6px !important;
             }
 
-            /* Inputs ≥16px to prevent iOS “focus zoom” */
+            /* Inputs large enough to avoid iOS focus-zoom */
             #pageNumber, #findInput, .toolbarField {
               font-size: 18px !important;
               height: 44px !important;
               padding: 6px 10px !important;
             }
 
-            /* Secondary toolbar panel spacing */
+            /* Secondary toolbar spacing */
             #secondaryToolbar { padding: 10px !important; }
-            #secondaryToolbar .toolbarButtonRow > .secondaryToolbarButton {
-              min-height: 48px !important;
-            }
-            #secondaryToolbar .horizontalToolbarSeparator {
-              height: 24px !important;
-              margin: 6px 0 !important;
-            }
-          }
-        `;
-        const style = doc.createElement('style');
-        style.id = 'turbosign-mobile-sizing';
-        style.textContent = css;
+            #secondaryToolbar .toolbarButtonRow > .secondaryToolbarButton { min-height: 48px !important; }
+            #secondaryToolbar .horizontalToolbarSeparator { height: 24px !important; margin: 6px 0 !important; }
+          }`;
         (doc.head || doc.documentElement).appendChild(style);
-
-        // 3) If editor buttons exist but are hidden in this build, unhide them (still stock UI)
-        //    (We do NOT add custom tools, just make sure "Text" and "Draw" show if shipped.)
-        const show = id => { const el = doc.getElementById(id); if (el) { el.hidden = false; el.style.display = ''; } };
-        show('editorModeButtons');  // editor group
-        show('editorFreeText');     // Add text
-        show('editorInk');          // Draw
-      } catch (e) {
-        console.error('Injection failed:', e);
       }
-    });
 
-    // If the viewer navigates internally (open file, reload), re-inject when it loads again
-    // Some deployments of PDF.js will reload viewer.html on certain actions.
-    const rearm = () => {
-      frame.removeEventListener('load', rearm); // no-op guard
-      frame.addEventListener('load', () => {}); // load handler above is still active
-    };
+      frame.addEventListener('load', () => {
+        // Wait one paint so the viewer builds its DOM, then inject.
+        try {
+          (frame.contentWindow.requestAnimationFrame || setTimeout)(inject, 0);
+        } catch { /* no-op */ }
+      });
+    })();
   </script>
 </body>
 </html>
