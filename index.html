@@ -2,15 +2,22 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <!-- Stop Safari from zooming the whole page; let PDF.js handle zoom -->
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>TurboSign</title>
   <style>
     :root { color-scheme: dark light; }
-    html,body { margin:0; height:100%; background:#0b0c10; }
+    html,body { margin:0; height:100%; background:#0b0c10;
+      /* Reduce browser over-scroll artifacts on mobile */
+      overscroll-behavior: contain;
+      /* Allow taps without double-tap zoom */
+      touch-action: manipulation;
+    }
     /* iOS-friendly full-height */
     #viewer { border:0; width:100%; height:100dvh; background:#121418; display:block; }
 
-    /* Phones only (≤768px) — TurboSign bottom toolbar */
+    /* Phones only (≤768px) — bottom toolbar */
     @media (max-width:768px){
       .ts-bar{
         position:fixed; left:0; right:0; bottom:0; z-index:9999;
@@ -30,13 +37,29 @@
       /* keep viewer content above dock */
       body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
     }
+
+    /* Fallback Text overlay */
+    .ts-text {
+      position:absolute; left:0; top:0;
+      color:#111; background:transparent; font:16px/1.25 -apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif;
+      pointer-events:auto; user-select:text; white-space:pre-wrap;
+      min-width:80px; min-height:24px;
+      outline:2px solid #4da3ff; outline-offset:2px;
+    }
+    .ts-text[contenteditable="true"] { cursor:text; }
+    .ts-text-handle { position:absolute; right:-10px; bottom:-10px; width:18px; height:18px; border-radius:50%; background:#4da3ff; }
+
+    /* Fallback Ink canvas overlays */
+    .ts-ink {
+      position:absolute; inset:0; pointer-events:auto; touch-action:none; /* block page scroll while drawing */
+    }
   </style>
 </head>
 <body>
   <!-- Stock PDF.js Default UI (ESM build: /web + /build *.mjs) -->
   <iframe id="viewer" src="/web/viewer.html#zoom=page-width" allow="clipboard-read; clipboard-write"></iframe>
 
-  <!-- Phone toolbar (no Thumbs) -->
+  <!-- Phone toolbar -->
   <div class="ts-bar" id="tsBar" aria-label="TurboSign mobile toolbar">
     <button class="ts-btn" id="tsOpen" title="Open">
       <svg viewBox="0 0 24 24" fill="none"><path d="M3 7h5l2 2h11v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" stroke="currentColor" stroke-width="1.6"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 2h6" stroke="currentColor" stroke-width="1.6"/></svg>
@@ -70,12 +93,15 @@
   </div>
 
   <script>
-    // Optional: register SW for offline if you ship /sw.js (it can precache *.mjs fine)
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(console.error);
-    }
+    // Block Safari page pinch/double-tap zoom; PDF zoom stays inside viewer
+    ['gesturestart','gesturechange','gestureend','dblclick'].forEach(type=>{
+      window.addEventListener(type, e=>{ e.preventDefault(); }, { passive:false });
+    });
 
-    // iOS Safari: keep 100dvh sane on rotate/address bar changes
+    // Optional: register SW for offline if you ship /sw.js
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(console.error);
+
+    // iOS Safari dynamic viewport
     const viewerEl = document.getElementById('viewer');
     const fitDvh = () => viewerEl && (viewerEl.style.height = Math.max(window.innerHeight, screen.height * 0.6) + 'px');
     addEventListener('orientationchange', fitDvh, {passive:true});
@@ -87,8 +113,8 @@
       if (!frame) return;
 
       let lastObjectURL = null;
+      const inkCanvases = new Map(); // pageNumber -> {canvas, ctx, dirty}
 
-      // Wait for the ESM viewer to finish initializing
       function waitForApp(){
         return new Promise(resolve=>{
           const poll=()=>{ try{
@@ -99,115 +125,244 @@
         });
       }
 
-      // Convenience: try clicking a built-in control by id (if present)
       function clickInViewer(id){
-        try{
-          const d = frame.contentDocument;
-          const el = d && d.getElementById(id);
-          if (el) { el.click(); return true; }
-        }catch{}
+        try{ const el = frame.contentDocument?.getElementById(id); if (el) { el.click(); return true; } }catch{}
         return false;
       }
 
-      // OPEN (local file) + revoke previous ObjectURL after load
+      async function loadPdfLib(){
+        if (window.PDFLib) return true;
+        const local = '/vendor/pdf-lib.min.js';
+        let ok = await new Promise(res=>{ const s=document.createElement('script'); s.src=local; s.onload=()=>res(true); s.onerror=()=>res(false); document.body.appendChild(s); });
+        if (ok) return true;
+        ok = await new Promise(res=>{ const s=document.createElement('script'); s.src='https://unpkg.com/pdf-lib/dist/pdf-lib.min.js'; s.onload=()=>res(true); s.onerror=()=>res(false); document.body.appendChild(s); });
+        return ok;
+      }
+
+      // OPEN (local) + revoke ObjectURL after load
       document.getElementById('tsOpen').onclick = ()=> document.getElementById('tsFile').click();
       document.getElementById('tsFile').onchange = (e)=>{
         const f = e.target.files && e.target.files[0]; if (!f) return;
         if (lastObjectURL) { URL.revokeObjectURL(lastObjectURL); lastObjectURL = null; }
         lastObjectURL = URL.createObjectURL(f);
         frame.src = `/web/viewer.html?file=${encodeURIComponent(lastObjectURL)}#zoom=page-width`;
-        waitForApp().then(app => app.eventBus?.on?.('documentloaded', ()=> {
-          if (lastObjectURL) { URL.revokeObjectURL(lastObjectURL); lastObjectURL = null; }
-          // run feature detection once a real doc is open
-          detectAndToggleEditorButtons(app);
-        }));
+        waitForApp().then(app => {
+          app.eventBus?.on?.('documentloaded', ()=>{
+            if (lastObjectURL) { URL.revokeObjectURL(lastObjectURL); lastObjectURL = null; }
+            detectEditors(app);
+          });
+        });
       };
 
-      // FIND (focus the input to pop iOS keyboard)
+      // FIND (focus input so iOS keyboard appears)
       document.getElementById('tsFind').onclick = async ()=>{
         const app = await waitForApp();
         try { app.findBar?.open?.(); } catch {}
-        try { const d = frame.contentDocument; d.getElementById('findInput')?.focus(); } catch {}
+        try { frame.contentDocument?.getElementById('findInput')?.focus(); } catch {}
       };
 
-      // ZOOM − / + (clamped & smooth)
+      // ZOOM − / +
       document.getElementById('tsZoomOut').onclick = async ()=>{
-        const app = await waitForApp();
-        const v = app.pdfViewer; const target = Math.max(0.1, v.currentScale / 1.1);
-        v.currentScale = +target.toFixed(3);
+        const app = await waitForApp(); const v = app.pdfViewer;
+        v.currentScale = +Math.max(0.1, v.currentScale / 1.1).toFixed(3);
       };
       document.getElementById('tsZoomIn').onclick = async ()=>{
-        const app = await waitForApp();
-        const v = app.pdfViewer; const target = Math.min(5, v.currentScale * 1.1);
-        v.currentScale = +target.toFixed(3);
+        const app = await waitForApp(); const v = app.pdfViewer;
+        v.currentScale = +Math.min(5, v.currentScale * 1.1).toFixed(3);
       };
 
-      // INK: use built-in if the editor exists; otherwise hide button
+      // INK: try built-in editor; else fallback overlay
       document.getElementById('tsInk').onclick = async ()=>{
         const app = await waitForApp();
         if (clickInViewer('editorInk')) return;
         if (app?.pdfViewer?.annotationEditorUIManager?.updateMode) {
           app.pdfViewer.annotationEditorUIManager.updateMode('ink'); return;
         }
-        alert('Ink is not available in this PDF.js build.');
+        enableInkFallback(app);
       };
 
-      // TEXT: use built-in if the editor exists; otherwise hide button
+      // TEXT: try built-in editor; else fallback
       document.getElementById('tsText').onclick = async ()=>{
         const app = await waitForApp();
         if (clickInViewer('editorFreeText')) return;
         if (app?.pdfViewer?.annotationEditorUIManager?.updateMode) {
           app.pdfViewer.annotationEditorUIManager.updateMode('freetext'); return;
         }
-        alert('Text is not available in this PDF.js build.');
+        enableTextFallback(app);
       };
 
-      // SAVE (robust; no dependency on hidden #download)
+      // SAVE: flatten fallback Ink/Text and download/open
       document.getElementById('tsSave').onclick = async () => {
         const app = await waitForApp();
         if (!app?.pdfDocument) { alert('Open a PDF first.'); return; }
+        const ok = await loadPdfLib(); if (!ok) { alert('Save failed: pdf-lib unavailable.'); return; }
 
-        try {
-          // Always get bytes from the ESM API
-          const bytes = await app.pdfDocument.getData(); // Uint8Array
-          const blob  = new Blob([bytes], { type:'application/pdf' });
-          const fname = (app._docFilename || app.baseUrl || 'document.pdf')
-                          .toString().split('/').pop().split('#')[0].split('?')[0] || 'document.pdf';
+        const raw = await app.pdfDocument.getData();
+        const pdfDoc = await window.PDFLib.PDFDocument.load(raw);
 
-          // iOS Safari ignores download attr: open a tab, user saves via Share
-          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-                        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-          const url = URL.createObjectURL(blob);
-          if (isIOS) {
-            window.open(url, '_blank');
-            setTimeout(()=>URL.revokeObjectURL(url), 15000);
-          } else {
-            const a = document.createElement('a');
-            a.href = url; a.download = fname;
-            document.body.appendChild(a); a.click(); a.remove();
-            URL.revokeObjectURL(url);
-          }
-        } catch (e) {
-          console.error(e);
-          alert('Save failed: ' + (e?.message || e));
+        // Flatten fallback Ink
+        for (const [pageNum, obj] of inkCanvases) {
+          if (!obj?.dirty) continue;
+          const pv = app.pdfViewer.getPageView(pageNum-1);
+          const vp = pv.viewport;
+          const dpr = obj.dpr || window.devicePixelRatio || 1;
+          const widthPts  = obj.canvas.width  / dpr / vp.scale;
+          const heightPts = obj.canvas.height / dpr / vp.scale;
+          const png = await pdfDoc.embedPng(obj.canvas.toDataURL('image/png'));
+          const page = pdfDoc.getPage(pageNum-1);
+          // full-page overlay: put at (0,0)
+          page.drawImage(png, { x: 0, y: 0, width: widthPts, height: heightPts });
+        }
+
+        // Flatten fallback Text
+        const boxes = Array.from(frame.contentDocument.querySelectorAll('.ts-text'));
+        for (const box of boxes) {
+          const pageDiv = box.closest('.page'); if (!pageDiv) continue;
+          const pageNum = +pageDiv.getAttribute('data-page-number');
+          const pv = app.pdfViewer.getPageView(pageNum-1);
+          const vp = pv.viewport;
+          const pr = pageDiv.getBoundingClientRect();
+          const br = box.getBoundingClientRect();
+          const leftPx = br.left - pr.left, topPx = br.top - pr.top;
+          const widthPx = br.width, heightPx = br.height;
+          const widthPts  = widthPx / vp.scale;
+          const heightPts = heightPx / vp.scale;
+          const xPts = leftPx / vp.scale;
+          const yPts = vp.height - ((topPx + heightPts) / vp.scale);
+          const page = pdfDoc.getPage(pageNum-1);
+          const text = box.textContent || '';
+          page.drawText(text, {
+            x: xPts, y: yPts + 4,
+            size: Math.max(8, Math.min(24, 12 / vp.scale)),
+            color: window.PDFLib.rgb(0,0,0),
+            maxWidth: widthPts,
+            lineHeight: 1.25
+          });
+        }
+
+        const out = await pdfDoc.save();
+        const blob  = new Blob([out], { type:'application/pdf' });
+        const appName = (app._docFilename || app.baseUrl || 'document.pdf').toString();
+        const fname = appName.split('/').pop().split('#')[0].split('?')[0] || 'document.pdf';
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const url = URL.createObjectURL(blob);
+        if (isIOS) {
+          window.open(url, '_blank'); setTimeout(()=>URL.revokeObjectURL(url), 15000);
+        } else {
+          const a = document.createElement('a'); a.href = url; a.download = fname;
+          document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
         }
       };
 
-      // Hide Ink/Text buttons if the editor isn’t in your build
-      async function detectAndToggleEditorButtons(app){
+      // --- Helpers ---
+
+      function detectEditors(app){
         try {
           const hasUI = !!app?.pdfViewer?.annotationEditorUIManager;
           const dom = frame.contentDocument;
           const hasInkId  = !!dom?.getElementById('editorInk');
           const hasTextId = !!dom?.getElementById('editorFreeText');
-
           if (!hasUI && !hasInkId)  document.getElementById('tsInk').style.display  = 'none';
           if (!hasUI && !hasTextId) document.getElementById('tsText').style.display = 'none';
         } catch {}
       }
 
-      // Run detection once the embedded viewer initializes (covers initial load without file)
-      waitForApp().then(detectAndToggleEditorButtons);
+      // Fallback Ink: overlay a full-size canvas per page, clamp to page, block page scroll while drawing
+      function enableInkFallback(app){
+        const doc = frame.contentDocument;
+        const container = doc.getElementById('viewer');
+        if (!container) return;
+
+        // Ensure each page has a canvas overlay
+        const pages = Array.from(container.querySelectorAll('.page'));
+        for (const pageDiv of pages) {
+          pageDiv.style.position = 'relative';
+          const pageNum = +pageDiv.getAttribute('data-page-number');
+          if (inkCanvases.has(pageNum)) continue;
+
+          const c = doc.createElement('canvas'); c.className='ts-ink'; pageDiv.appendChild(c);
+          const r = pageDiv.getBoundingClientRect();
+          const dpr = Math.max(window.devicePixelRatio || 1, 1);
+          c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr);
+          c.style.width = r.width + 'px'; c.style.height = r.height + 'px';
+          const ctx = c.getContext('2d'); ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#111'; ctx.lineWidth = 2.5 * dpr;
+          inkCanvases.set(pageNum, { canvas:c, ctx, dpr, dirty:false });
+
+          // Resize with zoom
+          app.eventBus?.on?.('scalechanging', ({scale})=>{
+            const rr = pageDiv.getBoundingClientRect();
+            c.width = Math.round(rr.width * dpr); c.height = Math.round(rr.height * dpr);
+            c.style.width = rr.width + 'px'; c.style.height = rr.height + 'px';
+            // NOTE: we keep drawn pixels as-is (scale with canvas); adequate for signatures/markups
+          });
+
+          // Pointer drawing (works on Safari/Chrome/Edge/Firefox)
+          let drawing=false, lx=0, ly=0;
+          c.addEventListener('pointerdown', e=>{ drawing=true; c.setPointerCapture(e.pointerId);
+            const rect=c.getBoundingClientRect(); lx=(e.clientX-rect.left)*dpr; ly=(e.clientY-rect.top)*dpr;
+            e.preventDefault();
+          }, {passive:false});
+          c.addEventListener('pointermove', e=>{ if(!drawing) return; const rect=c.getBoundingClientRect();
+            const x=(e.clientX-rect.left)*dpr, y=(e.clientY-rect.top)*dpr;
+            ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(x,y); ctx.stroke();
+            lx=x; ly=y; inkCanvases.get(pageNum).dirty=true;
+          }, {passive:true});
+          c.addEventListener('pointerup',   e=>{ drawing=false; try{c.releasePointerCapture(e.pointerId);}catch{} }, {passive:true});
+          c.addEventListener('pointercancel', ()=>{ drawing=false; }, {passive:true});
+        }
+
+        alert('Ink: draw directly on pages. (Built-in editor not found, using fallback.)');
+      }
+
+      // Fallback Text: tap to place, drag/resize, clamp to page
+      function enableTextFallback(app){
+        const doc = frame.contentDocument;
+        const container = doc.getElementById('viewer'); if (!container) return;
+
+        const onClick = (ev) => {
+          const pageDiv = ev.target.closest('.page'); if (!pageDiv) return;
+          const rect = pageDiv.getBoundingClientRect();
+          const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
+
+          const box = doc.createElement('div'); box.className='ts-text'; box.contentEditable='true';
+          box.textContent = 'Type…';
+          pageDiv.style.position='relative'; pageDiv.appendChild(box);
+          box.style.left = Math.max(4, Math.min(x - 40, rect.width - 84)) + 'px';
+          box.style.top  = Math.max(4, Math.min(y - 12, rect.height - 24)) + 'px';
+          box.focus();
+
+          // Drag within bounds
+          let dragging=false,sx=0,sy=0,bl=0,bt=0;
+          box.addEventListener('pointerdown', (e)=>{ if (e.target === box) {
+            dragging=true; box.setPointerCapture(e.pointerId); sx=e.clientX; sy=e.clientY; bl=parseFloat(box.style.left)||0; bt=parseFloat(box.style.top)||0; e.preventDefault();
+          }}, {passive:false});
+          box.addEventListener('pointermove', (e)=>{ if(!dragging) return; const dx=e.clientX-sx, dy=e.clientY-sy; let L=bl+dx, T=bt+dy;
+            const pr=pageDiv.getBoundingClientRect(); const br=box.getBoundingClientRect();
+            L=Math.max(0,Math.min(L, pr.width - br.width)); T=Math.max(0,Math.min(T, pr.height - br.height));
+            box.style.left=L+'px'; box.style.top=T+'px';
+          });
+          box.addEventListener('pointerup', (e)=>{ dragging=false; try{box.releasePointerCapture(e.pointerId);}catch{} });
+
+          // Resize
+          const handle = doc.createElement('div'); handle.className='ts-text-handle'; box.appendChild(handle);
+          let resizing=false, rsx=0, rsy=0, baseW=0, baseH=0;
+          handle.addEventListener('pointerdown',(e)=>{ e.stopPropagation(); resizing=true; handle.setPointerCapture(e.pointerId); rsx=e.clientX; rsy=e.clientY; baseW=box.offsetWidth; baseH=box.offsetHeight; });
+          handle.addEventListener('pointermove',(e)=>{ if(!resizing) return; const dx=e.clientX-rsx, dy=e.clientY-rsy; box.style.width=(baseW+dx)+'px'; box.style.height=(baseH+dy)+'px'; });
+          handle.addEventListener('pointerup',(e)=>{ resizing=false; try{handle.releasePointerCapture(e.pointerId);}catch{} });
+
+          // Delete when empty
+          box.addEventListener('keydown',(e)=>{ if((e.key==='Backspace'||e.key==='Delete') && box.textContent.trim()===''){ box.remove(); } });
+
+          container.removeEventListener('click', onClick, true);
+        };
+
+        container.addEventListener('click', onClick, true);
+        alert('Text: tap a page to place. Drag to move, resize with the dot, backspace to remove.');
+      }
+
+      // Run editor detection on init (covers built-in editors)
+      waitForApp().then(detectEditors);
     })();
   </script>
 </body>
