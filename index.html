@@ -2,511 +2,131 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <!-- Lock outer-page zoom; let PDF.js handle zoom internally -->
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <!-- Keep the outer page from doing dumb zoom tricks on iOS -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
   <title>TurboSign</title>
   <style>
-    :root { color-scheme: dark light; }
-    html,body{
-      margin:0; height:100%; background:#0b0c10;
-      overscroll-behavior: contain;
-      touch-action: manipulation; /* no double-tap zoom */
-    }
-    #viewer{ border:0; width:100%; height:100dvh; display:block; background:#121418; }
-
-    /* Phones (≤768px) bottom toolbar */
-    @media (max-width:768px){
-      .ts-bar{
-        position:fixed; left:0; right:0; bottom:0; z-index:9999;
-        display:flex; gap:10px; align-items:center; justify-content:space-between;
-        padding:10px 12px calc(10px + env(safe-area-inset-bottom));
-        background:rgba(15,17,21,.92); backdrop-filter:saturate(1.2) blur(6px);
-        border-top:1px solid #20242c; font:14px/1 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      }
-      .ts-btn{ flex:1 1 auto; min-height:48px; min-width:44px; display:flex; flex-direction:column; gap:6px;
-               align-items:center; justify-content:center; padding:8px 6px; border-radius:10px;
-               border:1px solid #2a2f39; color:#e8eaed; background:#1a1d24; }
-      .ts-btn:active{ transform:translateY(1px); }
-      .ts-btn svg{ width:22px; height:22px }
-      .ts-file{ display:none }
-      body{ padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
-    }
-
-    /* Fallback Text */
-    .ts-text{ position:absolute; left:0; top:0; min-width:80px; min-height:24px; white-space:pre-wrap;
-      font:16px/1.25 -apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif; color:#111; background:transparent;
-      outline:2px solid #4da3ff; outline-offset:2px; user-select:text; }
-    .ts-text-handle{ position:absolute; right:-10px; bottom:-10px; width:18px; height:18px; border-radius:50%; background:#4da3ff; }
-
-    /* Fallback Ink canvas */
-    .ts-ink{ position:absolute; inset:0; pointer-events:auto; touch-action:none; } /* stops page scroll while drawing */
+    html, body { margin:0; height:100%; background:#0b0c10; }
+    /* iOS-friendly full height */
+    #viewer { display:block; width:100%; height:100dvh; border:0; background:#121418; }
   </style>
 </head>
 <body>
+  <!-- Load the STOCK Mozilla viewer; we’ll tune it from here -->
   <iframe id="viewer" src="/web/viewer.html#zoom=page-width" allow="clipboard-read; clipboard-write"></iframe>
 
-  <!-- Phone toolbar -->
-  <div class="ts-bar" id="tsBar" aria-label="TurboSign mobile toolbar">
-    <button class="ts-btn" id="tsOpen" title="Open">
-      <svg viewBox="0 0 24 24" fill="none"><path d="M3 7h5l2 2h11v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" stroke="currentColor" stroke-width="1.6"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 2h6" stroke="currentColor" stroke-width="1.6"/></svg>
-      <span>Open</span>
-    </button>
-    <button class="ts-btn" id="tsFind" title="Find">
-      <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.6"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.6"/></svg>
-      <span>Find</span>
-    </button>
-    <button class="ts-btn" id="tsZoomOut" title="Zoom out">
-      <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7.5" stroke="currentColor" stroke-width="1.6"/><path d="M8 11h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M20 20l-3-3" stroke="currentColor" stroke-width="1.6"/></svg>
-      <span>−</span>
-    </button>
-    <button class="ts-btn" id="tsZoomIn" title="Zoom in">
-      <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7.5" stroke="currentColor" stroke-width="1.6"/><path d="M11 8v6M8 11h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-      <span>+</span>
-    </button>
-    <button class="ts-btn" id="tsInk" title="Ink">
-      <svg viewBox="0 0 24 24" fill="none"><path d="M3 21l6-2 9.5-9.5a2.1 2.1 0 0 0-3-3L6 16l-3 5z" stroke="currentColor" stroke-width="1.6"/></svg>
-      <span>Ink</span>
-    </button>
-    <button class="ts-btn" id="tsText" title="Text">
-      <svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M12 6v12M7 18h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-      <span>Text</span>
-    </button>
-    <button class="ts-btn" id="tsSave" title="Save">
-      <svg viewBox="0 0 24 24" fill="none"><path d="M5 7h9l5 5v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7z" stroke="currentColor" stroke-width="1.6"/><path d="M8 7V4h6v3" stroke="currentColor" stroke-width="1.6"/></svg>
-      <span>Save</span>
-    </button>
-    <input id="tsFile" class="ts-file" type="file" accept="application/pdf" />
-  </div>
-
   <script>
-    /* ===== Global Safari zoom blockers (outer page) ===== */
+    // ===== Outer-page hardening (no page zoom; only the PDF should zoom) =====
     ['gesturestart','gesturechange','gestureend','dblclick'].forEach(t=>{
-      addEventListener(t, e => e.preventDefault(), { passive:false });
+      addEventListener(t, e=>e.preventDefault(), { passive:false });
     });
-    // Classic double-tap blocker
-    (function(){ let last=0; addEventListener('touchend',e=>{const now=Date.now(); if(now-last<300){ e.preventDefault(); } last=now; },{passive:false}); })();
+    (function(){ let last=0;
+      addEventListener('touchend', e=>{ const now=Date.now(); if (now-last<300) e.preventDefault(); last=now; }, { passive:false });
+    })();
 
-    // Optional SW
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(console.error);
-
-    // iOS dynamic viewport
-    const viewerEl = document.getElementById('viewer');
-    const fitDvh = () => { viewerEl.style.height = Math.max(window.innerHeight, screen.height*0.6) + 'px'; };
-    addEventListener('orientationchange', fitDvh, {passive:true});
-    addEventListener('resize', fitDvh, {passive:true});
+    // Keep iframe full height across iOS URL bar show/hide + rotation
+    const frame = document.getElementById('viewer');
+    const fitDvh = () => { frame.style.height = Math.max(window.innerHeight, screen.height*0.6) + 'px'; };
+    addEventListener('resize', fitDvh, { passive:true });
+    addEventListener('orientationchange', fitDvh, { passive:true });
     fitDvh();
 
-    (function(){
-      const frame = document.getElementById('viewer');
-      let lastObjectURL = null;
+    // ===== Inject fixes directly into the viewer (same-origin) =====
+    frame.addEventListener('load', () => {
+      try {
+        const doc = frame.contentDocument;
+        if (!doc) return;
 
-      // Per-page state
-      const pages = new Map(); // pageNum -> { ink: {dpr, canvas, ctx, strokes: [[{xN,yN}...]], widthN}, text: Set<box> }
-      const textBoxes = new Set(); // track for export
-
-      function waitForApp(){
-        return new Promise(resolve=>{
-          const poll=()=>{ try{
-            const a = frame.contentWindow?.PDFViewerApplication;
-            if (a?.initializedPromise) return a.initializedPromise.then(()=>resolve(a));
-          }catch{} setTimeout(poll,50); };
-          poll();
-        });
-      }
-
-      // Inject blockers into the VIEWER (inside iframe) so Safari can’t zoom there either
-      async function hardenViewerGestures(){
-        const doc = frame.contentDocument; if (!doc) return;
-        const s = doc.createElement('script');
-        s.textContent = `
+        // 1) Prevent page-level zoom INSIDE the viewer (Safari double-tap/pinch)
+        const blockScript = doc.createElement('script');
+        blockScript.textContent = `
           ['gesturestart','gesturechange','gestureend','dblclick'].forEach(t=>{
-            addEventListener(t, e => e.preventDefault(), { passive:false });
+            window.addEventListener(t, e=>e.preventDefault(), { passive:false });
           });
-          (function(){ let last=0; addEventListener('touchend',e=>{const now=Date.now(); if(now-last<300){ e.preventDefault(); } last=now; },{passive:false}); })();
-          try{ document.documentElement.style.touchAction='manipulation';
-               document.body.style.touchAction='manipulation'; }catch{}
+          (function(){ let last=0;
+            window.addEventListener('touchend', e=>{ const now=Date.now(); if (now-last<300) e.preventDefault(); last=now; }, { passive:false });
+          })();
+          try { document.documentElement.style.touchAction='manipulation'; document.body.style.touchAction='manipulation'; } catch {}
         `;
-        doc.head.appendChild(s);
-      }
+        (doc.head || doc.documentElement).appendChild(blockScript);
 
-      function clickInViewer(id){ try{
-        const el = frame.contentDocument?.getElementById(id); if (el){ el.click(); return true; }
-      }catch{} return false; }
+        // 2) Make EVERY default toolbar button finger-sized on mobile (main + secondary)
+        const css = `
+          @media (max-width: 768px) {
+            #toolbarContainer { height: 72px !important; }
 
-      async function ensurePdfLib(){
-        if (window.PDFLib) return true;
-        const trySrc = src => new Promise(res=>{ const sc=document.createElement('script'); sc.src=src;
-          sc.onload=()=>res(true); sc.onerror=()=>res(false); document.body.appendChild(sc); });
-        if (await trySrc('/vendor/pdf-lib.min.js')) return true;
-        return await trySrc('https://unpkg.com/pdf-lib/dist/pdf-lib.min.js');
-      }
-
-      // OPEN local file
-      document.getElementById('tsOpen').onclick = ()=> document.getElementById('tsFile').click();
-      document.getElementById('tsFile').onchange = (e)=>{
-        const f = e.target.files?.[0]; if (!f) return;
-        if (lastObjectURL) { URL.revokeObjectURL(lastObjectURL); lastObjectURL = null; }
-        lastObjectURL = URL.createObjectURL(f);
-        frame.src = `/web/viewer.html?file=${encodeURIComponent(lastObjectURL)}#zoom=page-width`;
-        waitForApp().then(app => {
-          app.initializedPromise?.then(()=>hardenViewerGestures());
-          app.eventBus?.on?.('documentloaded', ()=>{
-            if (lastObjectURL) { URL.revokeObjectURL(lastObjectURL); lastObjectURL = null; }
-            detectEditors(app);
-            installObservers(app);   // NEW: robust page observer
-          });
-        });
-      };
-
-      // FIND
-      document.getElementById('tsFind').onclick = async ()=>{
-        const app = await waitForApp();
-        try { app.findBar?.open?.(); } catch {}
-        frame.contentDocument?.getElementById('findInput')?.focus();
-      };
-
-      // ZOOM
-      document.getElementById('tsZoomOut').onclick = async ()=>{
-        const app = await waitForApp(); const v = app.pdfViewer;
-        v.currentScale = +Math.max(0.1, v.currentScale / 1.1).toFixed(3);
-      };
-      document.getElementById('tsZoomIn').onclick = async ()=>{
-        const app = await waitForApp(); const v = app.pdfViewer;
-        v.currentScale = +Math.min(5, v.currentScale * 1.1).toFixed(3);
-      };
-
-      // INK (native if present, else fallback)
-      document.getElementById('tsInk').onclick = async ()=>{
-        const app = await waitForApp();
-        if (clickInViewer('editorInk')) return;
-        if (app?.pdfViewer?.annotationEditorUIManager?.updateMode) {
-          app.pdfViewer.annotationEditorUIManager.updateMode('ink'); return;
-        }
-        enableInkFallback(app);
-      };
-
-      // TEXT (native if present, else fallback)
-      document.getElementById('tsText').onclick = async ()=>{
-        const app = await waitForApp();
-        if (clickInViewer('editorFreeText')) return;
-        if (app?.pdfViewer?.annotationEditorUIManager?.updateMode) {
-          app.pdfViewer.annotationEditorUIManager.updateMode('freetext'); return;
-        }
-        enableTextFallback(app);
-      };
-
-      // SAVE (always works; flattens fallback Ink/Text)
-      document.getElementById('tsSave').onclick = async ()=>{
-        const app = await waitForApp();
-        if (!app?.pdfDocument) { alert('Open a PDF first.'); return; }
-        if (!await ensurePdfLib()) { alert('Save failed: pdf-lib unavailable.'); return; }
-
-        const raw = await app.pdfDocument.getData();
-        const pdfDoc = await window.PDFLib.PDFDocument.load(raw);
-
-        // INK flatten (render current canvas as PNG at correct PDF point size)
-        for (const [pageNum, st] of pages){
-          if (!st.ink || !st.ink.strokes.length) continue;
-          const pv = app.pdfViewer.getPageView(pageNum-1);
-          const vp = pv.viewport;               // points at scale=1 * scale
-          const widthPts  = vp.width;
-          const heightPts = vp.height;
-
-          // Render strokes to an offscreen canvas at current pixel density
-          const off = document.createElement('canvas');
-          // Render at 1x PDF points resolution -> scale up strokes accordingly
-          off.width  = Math.ceil(widthPts);
-          off.height = Math.ceil(heightPts);
-          const octx = off.getContext('2d');
-          octx.lineCap='round'; octx.lineJoin='round'; octx.strokeStyle='#111';
-
-          // Draw from normalized coords to points
-          for (const stroke of st.ink.strokes){
-            const pts = stroke.points;
-            if (pts.length < 2) continue;
-            octx.lineWidth = Math.max(1, stroke.widthN * Math.min(widthPts,heightPts));
-            octx.beginPath();
-            octx.moveTo(pts[0].xN*widthPts, (1-pts[0].yN)*heightPts);
-            for (let i=1;i<pts.length;i++){
-              octx.lineTo(pts[i].xN*widthPts, (1-pts[i].yN)*heightPts);
+            /* Main toolbar buttons + split buttons + secondary toggle */
+            #toolbarViewerLeft .toolbarButton,
+            #toolbarViewerMiddle .toolbarButton,
+            #toolbarViewerRight .toolbarButton,
+            #secondaryToolbarToggle,
+            .splitToolbarButton > .toolbarButton,
+            .overlayButton,
+            .secondaryToolbarButton {
+              min-width: 56px !important;
+              height: 56px !important;
+              padding: 8px !important;
+              line-height: 1 !important;
             }
-            octx.stroke();
-          }
 
-          const png = await pdfDoc.embedPng(off.toDataURL('image/png'));
-          const page = pdfDoc.getPage(pageNum-1);
-          page.drawImage(png, { x: 0, y: 0, width: widthPts, height: heightPts });
-        }
+            /* Scale the sprite/mask-based icons inside buttons */
+            .toolbarButton::before,
+            .secondaryToolbarButton::before,
+            .overlayButton::before {
+              width: 28px !important;
+              height: 28px !important;
+              background-size: 28px 28px !important;
+              -webkit-mask-size: 28px 28px !important;
+                      mask-size: 28px 28px !important;
+              margin: 0 auto !important;
+            }
 
-        // TEXT flatten (normalized box → points)
-        for (const box of textBoxes){
-          if (!box.isConnected) continue;
-          const pageDiv = box.closest('.page'); if (!pageDiv) continue;
-          const pageNum = +pageDiv.getAttribute('data-page-number');
-          const pv = app.pdfViewer.getPageView(pageNum-1);
-          const vp = pv.viewport; // width/height in points at current scale; but our normalized uses scale-invariant
-          const widthPts  = vp.width; const heightPts = vp.height;
+            /* Split-button separators */
+            .splitToolbarButtonSeparator {
+              height: 40px !important;
+              margin: 0 6px !important;
+            }
 
-          const xN = parseFloat(box.dataset.xn);
-          const yN = parseFloat(box.dataset.yn);
-          const wN = parseFloat(box.dataset.wn);
-          const hN = parseFloat(box.dataset.hn);
+            /* Inputs ≥16px to prevent iOS “focus zoom” */
+            #pageNumber, #findInput, .toolbarField {
+              font-size: 18px !important;
+              height: 44px !important;
+              padding: 6px 10px !important;
+            }
 
-          const xPts = xN * widthPts;
-          const yPts = (1 - yN - hN) * heightPts; // CSS top-left → PDF bottom-left
-          const maxW = Math.max(8, wN * widthPts);
-          const page = pdfDoc.getPage(pageNum-1);
-          const text = box.textContent || '';
-          page.drawText(text, {
-            x: xPts, y: yPts + 4,
-            size: Math.max(8, Math.min(24, 12)),
-            color: window.PDFLib.rgb(0,0,0),
-            maxWidth: maxW,
-            lineHeight: 1.25
-          });
-        }
-
-        const out = await pdfDoc.save();
-        const blob = new Blob([out], { type:'application/pdf' });
-        const appName = (app._docFilename || app.baseUrl || 'document.pdf').toString();
-        const fname = appName.split('/').pop().split('#')[0].split('?')[0] || 'document.pdf';
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-                      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-        const url = URL.createObjectURL(blob);
-        if (isIOS) { window.open(url, '_blank'); setTimeout(()=>URL.revokeObjectURL(url), 15000); }
-        else { const a=document.createElement('a'); a.href=url; a.download=fname; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
-      };
-
-      /* ---------- Robust page hooks (MutationObserver) ---------- */
-      function installObservers(app){
-        const doc = frame.contentDocument; if (!doc) return;
-        const container = doc.getElementById('viewer'); if (!container) return;
-
-        // Create overlays when pages appear
-        const ensurePageState = (pageDiv) => {
-          const n = +pageDiv.getAttribute('data-page-number');
-          if (pages.has(n)) return pages.get(n);
-          pageDiv.style.position='relative';
-
-          // per-page state
-          const state = {
-            ink: { dpr: Math.max(devicePixelRatio||1,1), canvas:null, ctx:null, strokes:[] }, // strokes in normalized coords
-            texts: new Set()
-          };
-          pages.set(n, state);
-
-          // add canvas
-          const c = doc.createElement('canvas'); c.className='ts-ink'; pageDiv.appendChild(c);
-          state.ink.canvas = c; state.ink.ctx = c.getContext('2d');
-          resizeInkCanvas(n, pageDiv);
-
-          // pointer drawing → normalized strokes
-          let drawing=false, lastXN=0, lastYN=0, currentStroke=null;
-          c.addEventListener('pointerdown', e=>{
-            drawing=true; c.setPointerCapture(e.pointerId);
-            const {xN,yN} = clientToNorm(e, c);
-            currentStroke = { widthN: (2.5 / 800), points: [{xN,yN}] }; // width normalized to ~800px page height
-            lastXN=xN; lastYN=yN; e.preventDefault();
-          },{passive:false});
-          c.addEventListener('pointermove', e=>{
-            if(!drawing) return;
-            const {xN,yN} = clientToNorm(e, c);
-            // draw segment in device pixels
-            drawInkSegment(state, lastXN, lastYN, xN, yN);
-            currentStroke.points.push({xN,yN});
-            lastXN=xN; lastYN=yN;
-          });
-          c.addEventListener('pointerup', e=>{
-            if (drawing && currentStroke){ state.ink.strokes.push(currentStroke); }
-            drawing=false; try{c.releasePointerCapture(e.pointerId);}catch{}
-          });
-          c.addEventListener('pointercancel', ()=>{ drawing=false; });
-
-          return state;
-        };
-
-        // Observe added pages
-        const mo = new MutationObserver(muts=>{
-          for (const m of muts){
-            for (const node of m.addedNodes){
-              if (node.nodeType===1 && node.classList.contains('page')) ensurePageState(node);
+            /* Secondary toolbar panel spacing */
+            #secondaryToolbar { padding: 10px !important; }
+            #secondaryToolbar .toolbarButtonRow > .secondaryToolbarButton {
+              min-height: 48px !important;
+            }
+            #secondaryToolbar .horizontalToolbarSeparator {
+              height: 24px !important;
+              margin: 6px 0 !important;
             }
           }
-        });
-        mo.observe(container, { childList:true });
+        `;
+        const style = doc.createElement('style');
+        style.id = 'turbosign-mobile-sizing';
+        style.textContent = css;
+        (doc.head || doc.documentElement).appendChild(style);
 
-        // Backfill existing pages
-        container.querySelectorAll('.page').forEach(p=>ensurePageState(p));
-
-        // Redraw on rerender/zoom
-        app.eventBus?.on?.('pagerendered', ({pageNumber})=>{
-          const pageDiv = container.querySelector(`.page[data-page-number="${pageNumber}"]`);
-          if (!pageDiv) return;
-          resizeInkCanvas(pageNumber, pageDiv);
-          redrawInk(pageNumber, pageDiv);
-          repositionTextBoxes(pageDiv);
-        });
-        app.eventBus?.on?.('scalechanging', ()=>{
-          // pagerendered will follow for each page; nothing else needed
-        });
+        // 3) If editor buttons exist but are hidden in this build, unhide them (still stock UI)
+        //    (We do NOT add custom tools, just make sure "Text" and "Draw" show if shipped.)
+        const show = id => { const el = doc.getElementById(id); if (el) { el.hidden = false; el.style.display = ''; } };
+        show('editorModeButtons');  // editor group
+        show('editorFreeText');     // Add text
+        show('editorInk');          // Draw
+      } catch (e) {
+        console.error('Injection failed:', e);
       }
+    });
 
-      function clientToNorm(e, canvas){
-        const r = canvas.getBoundingClientRect();
-        const x = (e.clientX - r.left) / r.width;   // 0..1
-        const y = (e.clientY - r.top)  / r.height;  // 0..1 (top)
-        return { xN: Math.max(0, Math.min(1, x)), yN: Math.max(0, Math.min(1, y)) };
-      }
-
-      function resizeInkCanvas(pageNum, pageDiv){
-        const st = pages.get(pageNum); if (!st) return;
-        const c = st.ink.canvas; const dpr = st.ink.dpr;
-        const r = pageDiv.getBoundingClientRect();
-        c.width  = Math.round(r.width * dpr);
-        c.height = Math.round(r.height * dpr);
-        c.style.width  = r.width + 'px';
-        c.style.height = r.height + 'px';
-        st.ink.ctx.setTransform(1,0,0,1,0,0);
-        st.ink.ctx.lineCap='round'; st.ink.ctx.lineJoin='round'; st.ink.ctx.strokeStyle='#111';
-      }
-
-      function drawInkSegment(st, xN1, yN1, xN2, yN2){
-        const c = st.ink.canvas, ctx = st.ink.ctx, dpr = st.ink.dpr;
-        const w = c.width / dpr, h = c.height / dpr;
-        ctx.beginPath();
-        ctx.lineWidth = 2.5 * dpr; // visual width; normalized stored separately
-        ctx.moveTo(xN1*w*dpr, yN1*h*dpr);
-        ctx.lineTo(xN2*w*dpr, yN2*h*dpr);
-        ctx.stroke();
-      }
-
-      function redrawInk(pageNum, pageDiv){
-        const st = pages.get(pageNum); if (!st) return;
-        const c = st.ink.canvas, ctx = st.ink.ctx, dpr = st.ink.dpr;
-        ctx.clearRect(0,0,c.width,c.height);
-        const w = c.width / dpr, h = c.height / dpr;
-        ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#111';
-        for (const stroke of st.ink.strokes){
-          const pts = stroke.points; if (pts.length<2) continue;
-          ctx.lineWidth = 2.5 * dpr; // map widthN if you want variable pen later
-          ctx.beginPath();
-          ctx.moveTo(pts[0].xN*w*dpr, pts[0].yN*h*dpr);
-          for (let i=1;i<pts.length;i++){
-            ctx.lineTo(pts[i].xN*w*dpr, pts[i].yN*h*dpr);
-          }
-          ctx.stroke();
-        }
-      }
-
-      function enableInkFallback(app){
-        // Just ensure overlays exist; observer + pagerendered will handle the rest
-        const doc = frame.contentDocument; const container = doc.getElementById('viewer'); if (!container) return;
-        container.querySelectorAll('.page').forEach(p=>{
-          const n = +p.getAttribute('data-page-number');
-          if (!pages.has(n)) return; // observer will create
-        });
-        alert('Ink: draw directly on pages. (Fallback active)');
-      }
-
-      function enableTextFallback(app){
-        const doc = frame.contentDocument; const container = doc.getElementById('viewer'); if (!container) return;
-
-        const onClick = (ev)=>{
-          const pageDiv = ev.target.closest('.page'); if (!pageDiv) return;
-          const r = pageDiv.getBoundingClientRect();
-          const x = ev.clientX - r.left, y = ev.clientY - r.top;
-
-          // normalized coords
-          const xN = Math.max(0, Math.min(1, x / r.width));
-          const yN = Math.max(0, Math.min(1, y / r.height));
-          const wN = 200 / r.width;  // default ~200px wide
-          const hN = 40  / r.height; // default ~40px high
-
-          const box = doc.createElement('div'); box.className='ts-text'; box.contentEditable='true'; box.textContent='Type…';
-          box.dataset.xn = xN; box.dataset.yn = yN; box.dataset.wn = wN; box.dataset.hn = hN;
-          placeTextBox(box, pageDiv);
-          textBoxes.add(box);
-          box.focus();
-
-          // drag
-          let dragging=false,sx=0,sy=0,bl=0,bt=0;
-          box.addEventListener('pointerdown',(e)=>{ if(e.target===box){ dragging=true; box.setPointerCapture(e.pointerId); sx=e.clientX; sy=e.clientY; const st=getBoxPx(box,pageDiv); bl=st.left; bt=st.top; e.preventDefault(); } },{passive:false});
-          box.addEventListener('pointermove',(e)=>{ if(!dragging) return; const dx=e.clientX-sx, dy=e.clientY-sy;
-            moveTextBoxPx(box,pageDiv, bl+dx, bt+dy);
-          });
-          box.addEventListener('pointerup',(e)=>{ dragging=false; try{box.releasePointerCapture(e.pointerId);}catch{} });
-
-          // resize
-          const handle=doc.createElement('div'); handle.className='ts-text-handle'; box.appendChild(handle);
-          let resizing=false,rsx=0,rsy=0,bw=0,bh=0;
-          handle.addEventListener('pointerdown',(e)=>{ e.stopPropagation(); resizing=true; handle.setPointerCapture(e.pointerId); rsx=e.clientX; rsy=e.clientY; const st=getBoxPx(box,pageDiv); bw=st.width; bh=st.height; });
-          handle.addEventListener('pointermove',(e)=>{ if(!resizing) return; const dx=e.clientX-rsx, dy=e.clientY-rsy; sizeTextBoxPx(box,pageDiv, bw+dx, bh+dy); });
-          handle.addEventListener('pointerup',(e)=>{ resizing=false; try{handle.releasePointerCapture(e.pointerId);}catch{} });
-
-          // delete when empty
-          box.addEventListener('keydown',(e)=>{ if((e.key==='Backspace'||e.key==='Delete') && box.textContent.trim()===''){ textBoxes.delete(box); box.remove(); } });
-
-          container.removeEventListener('click', onClick, true);
-        };
-
-        container.addEventListener('click', onClick, true);
-        alert('Text: tap a page to place. Drag to move, resize with the dot. (Fallback active)');
-      }
-
-      function getBoxPx(box, pageDiv){
-        return {
-          left: parseFloat(box.style.left)||0,
-          top:  parseFloat(box.style.top)||0,
-          width: parseFloat(box.style.width)||box.offsetWidth,
-          height: parseFloat(box.style.height)||box.offsetHeight,
-          page: pageDiv.getBoundingClientRect()
-        };
-      }
-      function moveTextBoxPx(box, pageDiv, L, T){
-        const pr = pageDiv.getBoundingClientRect();
-        const w = (parseFloat(box.style.width)||box.offsetWidth);
-        const h = (parseFloat(box.style.height)||box.offsetHeight);
-        L = Math.max(0, Math.min(L, pr.width - w));
-        T = Math.max(0, Math.min(T, pr.height - h));
-        box.style.left = L+'px'; box.style.top = T+'px';
-        // update normalized
-        box.dataset.xn = (L / pr.width);
-        box.dataset.yn = (T / pr.height);
-      }
-      function sizeTextBoxPx(box, pageDiv, W, H){
-        const pr = pageDiv.getBoundingClientRect();
-        W = Math.max(40, Math.min(W, pr.width));
-        H = Math.max(20, Math.min(H, pr.height));
-        box.style.width = W+'px'; box.style.height = H+'px';
-        box.dataset.wn = (W / pr.width);
-        box.dataset.hn = (H / pr.height);
-      }
-      function placeTextBox(box, pageDiv){
-        pageDiv.style.position='relative';
-        const pr = pageDiv.getBoundingClientRect();
-        pageDiv.appendChild(box);
-        // apply normalized → px
-        box.style.left = (parseFloat(box.dataset.xn) * pr.width)  + 'px';
-        box.style.top  = (parseFloat(box.dataset.yn) * pr.height) + 'px';
-        box.style.width= (parseFloat(box.dataset.wn) * pr.width)  + 'px';
-        box.style.height=(parseFloat(box.dataset.hn) * pr.height) + 'px';
-      }
-      function repositionTextBoxes(pageDiv){
-        pageDiv.querySelectorAll('.ts-text').forEach(box=>placeTextBox(box, pageDiv));
-      }
-
-      function detectEditors(app){
-        try {
-          const hasUI = !!app?.pdfViewer?.annotationEditorUIManager;
-          const dom = frame.contentDocument;
-          const hasInkId  = !!dom?.getElementById('editorInk');
-          const hasTextId = !!dom?.getElementById('editorFreeText');
-          if (!hasUI && !hasInkId)  document.getElementById('tsInk').style.display  = 'none';
-          if (!hasUI && !hasTextId) document.getElementById('tsText').style.display = 'none';
-        } catch {}
-      }
-    })();
+    // If the viewer navigates internally (open file, reload), re-inject when it loads again
+    // Some deployments of PDF.js will reload viewer.html on certain actions.
+    const rearm = () => {
+      frame.removeEventListener('load', rearm); // no-op guard
+      frame.addEventListener('load', () => {}); // load handler above is still active
+    };
   </script>
 </body>
 </html>
