@@ -306,20 +306,37 @@
 
     // Export signed PDF (flatten signatures)
     document.getElementById('export').addEventListener('click', async () => {
-      try {
-        const app = await getApp();
-        if (!app?.pdfDocument) { alert('No PDF loaded.'); return; }
-        const bytes = await app.pdfDocument.getData(); // Uint8Array
-        const pdfDoc = await PDFLib.PDFDocument.load(bytes);
+  try {
+    const app = await getApp();
+    if (!app?.pdfDocument) { alert('No PDF loaded.'); return; }
+    const bytes = await app.pdfDocument.getData();
+    const pdfDoc = await PDFLib.PDFDocument.load(bytes);
 
-        for (const p of placements) {
-          const page = pdfDoc.getPage(p.pageNumber - 1);
-          const png = await pdfDoc.embedPng(p.dataURL);
-          const pngDims = png.scale(1);
-          const aspect = pngDims.height / pngDims.width;
-          const width = p.wPts;
-          const height = width * aspect;
-          page.drawImage(png, { x: p.xPts - width/2, y: p.yPts - height/2, width, height });
+    for (const p of placements) {
+      const page = pdfDoc.getPage(p.pageNumber - 1);
+      const pageView = app.pdfViewer.getPageView(p.pageNumber - 1);
+      const vp = pageView.viewport;
+      const widthPts = p.widthPx / vp.scale;
+      const heightPts = p.heightPx / vp.scale;
+      const centerXPts = (p.leftPx + p.widthPx/2) / vp.scale;
+      const centerYPts = vp.height - ((p.topPx + p.heightPx/2) / vp.scale);
+      const x = centerXPts - widthPts/2;
+      const y = centerYPts - heightPts/2;
+      const png = await pdfDoc.embedPng(p.dataURL);
+      page.drawImage(png, { x, y, width: widthPts, height: heightPts });
+    }
+
+    const out = await pdfDoc.save();
+    const blob = new Blob([out], { type: 'application/pdf' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'signed.pdf';
+    a.click();
+  } catch (e) {
+    console.error(e);
+    alert('Export failed: ' + (e?.message||e));
+  }
+});
         }
 
         const out = await pdfDoc.save();
@@ -333,6 +350,21 @@
         alert('Export failed: ' + (e?.message||e));
       }
     });
-  </script>
+  // Delete selected overlay with Delete/Backspace
+addEventListener('keydown', (e)=>{
+  if(e.key !== 'Delete' && e.key !== 'Backspace') return;
+  const sel = (frame.contentDocument || document).querySelector('.sig-overlay.selected');
+  if(!sel) return;
+  const pageDiv = sel.closest('.page');
+  const pageNum = pageDiv ? +pageDiv.getAttribute('data-page-number') : null;
+  const l = parseFloat(sel.style.left||'0');
+  const t = parseFloat(sel.style.top||'0');
+  const w = sel.getBoundingClientRect().width;
+  const h = sel.getBoundingClientRect().height;
+  const idx = placements.findIndex(p => p.pageNumber===pageNum && Math.abs(p.leftPx-l)<2 && Math.abs(p.topPx-t)<2 && Math.abs(p.widthPx-w)<2);
+  if(idx>-1) placements.splice(idx,1);
+  sel.remove();
+});
+</script>
 </body>
 </html>
