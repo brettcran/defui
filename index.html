@@ -1,115 +1,152 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TurboSign</title>
   <style>
-    html,body {margin:0;height:100%;}
-    #viewer {border:0;width:100%;height:100%;}
+    html,body { margin:0; height:100%; background:#0b0c10; }
+    #viewer { border:0; width:100%; height:100%; background:#121418; }
+
+    /* Phones only (≤768px) — TurboSign bottom toolbar */
+    @media (max-width:768px){
+      .ts-bar{
+        position:fixed; left:0; right:0; bottom:0; z-index:9999;
+        display:flex; gap:10px; justify-content:space-between; align-items:center;
+        padding:10px 12px; background:rgba(15,17,21,.92); backdrop-filter:saturate(1.2) blur(6px);
+        border-top:1px solid #20242c; font:14px/1 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      }
+      .ts-btn{
+        flex:1 1 auto; min-width:44px; min-height:48px;
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        gap:6px; padding:8px 6px; border-radius:10px; border:1px solid #2a2f39; color:#e8eaed; background:#1a1d24;
+      }
+      .ts-btn:active{ transform:translateY(1px); }
+      .ts-btn svg{ width:22px; height:22px; display:block }
+      .ts-file{ display:none }
+      /* leave room so the viewer content isn't hidden under the dock */
+      body { padding-bottom:76px; }
+    }
   </style>
 </head>
 <body>
-  <script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(console.error);
-}
-</script>
-  <!-- Stock PDF.js UI -->
+  <!-- Stock PDF.js Default UI (keep /web & /build at repo root) -->
   <iframe id="viewer" src="/web/viewer.html#zoom=page-width"></iframe>
 
+  <!-- TurboSign mobile toolbar overlay -->
+  <div class="ts-bar" id="tsBar" aria-label="TurboSign mobile toolbar">
+    <button class="ts-btn" id="tsOpen" title="Open">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 7h5l2 2h11v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" stroke="currentColor" stroke-width="1.6"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 2h6" stroke="currentColor" stroke-width="1.6"/></svg>
+      <span>Open</span>
+    </button>
+    <button class="ts-btn" id="tsFind" title="Find">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.6"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.6"/></svg>
+      <span>Find</span>
+    </button>
+    <button class="ts-btn" id="tsThumbs" title="Thumbnails">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="8" height="7" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="13" y="4" width="8" height="7" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="13" width="8" height="7" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="13" y="13" width="8" height="7" rx="1" stroke="currentColor" stroke-width="1.6"/></svg>
+      <span>Thumbs</span>
+    </button>
+    <button class="ts-btn" id="tsZoomOut" title="Zoom out">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7.5" stroke="currentColor" stroke-width="1.6"/><path d="M8 11h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M20 20l-3-3" stroke="currentColor" stroke-width="1.6"/></svg>
+      <span>−</span>
+    </button>
+    <button class="ts-btn" id="tsZoomIn" title="Zoom in">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7.5" stroke="currentColor" stroke-width="1.6"/><path d="M11 8v6M8 11h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M20 20l-3-3" stroke="currentColor" stroke-width="1.6"/></svg>
+      <span>+</span>
+    </button>
+    <button class="ts-btn" id="tsInk" title="Ink">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 21l6-2 9.5-9.5a2.1 2.1 0 0 0-3-3L6 16l-3 5z" stroke="currentColor" stroke-width="1.6"/></svg>
+      <span>Ink</span>
+    </button>
+    <button class="ts-btn" id="tsText" title="Text">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M12 6v12M7 18h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <span>Text</span>
+    </button>
+    <button class="ts-btn" id="tsSave" title="Save">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M5 7h9l5 5v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7z" stroke="currentColor" stroke-width="1.6"/><path d="M8 7V4h6v3" stroke="currentColor" stroke-width="1.6"/></svg>
+      <span>Save</span>
+    </button>
+    <input id="tsFile" class="ts-file" type="file" accept="application/pdf">
+  </div>
+
   <script>
-  // Phone-only toolbar layout (≤768px): wrap rows, add gaps, hide extras
-  (function () {
-    const frame = document.getElementById('viewer');
-    if (!frame) return;
+    // Wire the mobile toolbar to the stock viewer
+    (function(){
+      const frame = document.getElementById('viewer');
+      if (!frame) return;
 
-    function waitForApp() {
-      return new Promise(resolve => {
-        const poll = () => {
-          try {
+      function waitForApp(){
+        return new Promise(resolve=>{
+          const poll=()=>{ try{
             const a = frame.contentWindow?.PDFViewerApplication;
-            if (a?.initializedPromise) return a.initializedPromise.then(() => resolve(a));
-          } catch {}
-          setTimeout(poll, 50);
-        };
-        poll();
-      });
-    }
+            if (a?.initializedPromise) return a.initializedPromise.then(()=>resolve(a));
+          }catch{} setTimeout(poll,50); };
+          poll();
+        });
+      }
 
-    (async () => {
-      await waitForApp();
-      const doc = frame.contentDocument;
-      if (!doc) return;
+      function clickInViewer(id){
+        try{
+          const d = frame.contentDocument;
+          const el = d && d.getElementById(id);
+          if (el) { el.click(); return true; }
+        }catch{}
+        return false;
+      }
 
-      const style = doc.createElement('style');
-      style.id = 'turbosign-mobile-toolbar';
-      style.textContent = `
-/* ---------- Phones only ---------- */
-@media (max-width: 768px) {
-  /* Overall toolbar spacing */
-  #toolbarContainer { padding: 6px 8px; }
+      // OPEN
+      document.getElementById('tsOpen').onclick = ()=> document.getElementById('tsFile').click();
+      document.getElementById('tsFile').onchange = (e)=>{
+        const f = e.target.files && e.target.files[0]; if (!f) return;
+        const url = URL.createObjectURL(f);
+        frame.src = `/web/viewer.html?file=${encodeURIComponent(url)}#zoom=page-width`;
+      };
 
-  /* Wrap toolbar into rows with gaps */
-  #toolbarViewer { display: flex; flex-wrap: wrap; row-gap: 10px; }
-  #toolbarViewerLeft,
-  #toolbarViewerMiddle,
-  #toolbarViewerRight {
-    display: flex; flex-wrap: wrap; gap: 8px;
-    flex: 1 1 100%;
-    align-items: center;
-  }
+      // FIND
+      document.getElementById('tsFind').onclick = async ()=>{
+        if (!clickInViewer('viewFind')) {
+          const app = await waitForApp();
+          app.findBar.open();
+        }
+      };
 
-  /* Bigger touch targets */
-  .toolbarButton,
-  .dropdownToolbarButton,
-  .secondaryToolbarButton,
-  .overlayButton {
-    min-height: 44px; min-width: 44px;
-    padding: 10px 12px;
-    font-size: 16px;
-  }
-  .toolbarButton::before,
-  .secondaryToolbarButton::before,
-  .overlayButton::before {
-    width: 22px; height: 22px;
-    margin-right: 6px;
-    background-size: 22px 22px;
-    -webkit-mask-size: 22px 22px;
-            mask-size: 22px 22px;
-  }
+      // THUMBS (sidebar)
+      document.getElementById('tsThumbs').onclick = async ()=>{
+        const app = await waitForApp();
+        const s = app.pdfSidebar;
+        s.isOpen ? s.close() : (s.open(), s.switchView(1)); // 1=thumbnails
+      };
 
-  /* Inputs bigger */
-  #pageNumber { height: 44px; font-size: 16px; }
-  #findInput  { height: 44px; font-size: 16px; }
+      // ZOOM − / +
+      document.getElementById('tsZoomOut').onclick = async ()=>{
+        if (!clickInViewer('zoomOut')) {
+          const app = await waitForApp();
+          app.pdfViewer.currentScale = app.pdfViewer.currentScale / 1.1;
+        }
+      };
+      document.getElementById('tsZoomIn').onclick = async ()=>{
+        if (!clickInViewer('zoomIn')) {
+          const app = await waitForApp();
+          app.pdfViewer.currentScale = app.pdfViewer.currentScale * 1.1;
+        }
+      };
 
-  /* Hide lower-value buttons on phones */
-  #openFile,
-  #viewBookmark,
-  #presentationMode,
-  #secondaryToolbarToggle,
-  #documentProperties,
-  #toggleHandTool,
-  #editorFreeText,
-  #editorInk,
-  #editorStamp,
-  #editorHighlight,
-  #editorTextHighlightToolButton,
-  #editorTextUnderlineToolButton,
-  #editorTextStrikeThroughToolButton {
-    display: none !important;
-  }
+      // INK (annotation)
+      document.getElementById('tsInk').onclick = ()=>{
+        if (!clickInViewer('editorInk')) alert('Ink tool not available in this build.');
+      };
 
-  /* Hide zoom dropdown, keep +/- */
-  #scaleSelectContainer { display: none !important; }
+      // TEXT (free text annotation)
+      document.getElementById('tsText').onclick = ()=>{
+        if (!clickInViewer('editorFreeText')) alert('Text tool not available in this build.');
+      };
 
-  /* Sidebar: make it wider for thumbs */
-  #sidebarContainer { width: min(85vw, 340px); }
-}
-      `;
-      doc.head.appendChild(style);
+      // SAVE (download)
+      document.getElementById('tsSave').onclick = ()=>{
+        if (!clickInViewer('download')) alert('Download button not found.');
+      };
     })();
-  })();
   </script>
 </body>
 </html>
