@@ -40,7 +40,7 @@
     .ts-text-handle{ position:absolute; right:-10px; bottom:-10px; width:18px; height:18px; border-radius:50%; background:#4da3ff; }
 
     /* Fallback Ink canvas */
-    .ts-ink{ position:absolute; inset:0; pointer-events:auto; touch-action:none; } /* prevents page scroll while drawing */
+    .ts-ink{ position:absolute; inset:0; pointer-events:auto; touch-action:none; } /* stops page scroll while drawing */
   </style>
 </head>
 <body>
@@ -101,8 +101,9 @@
       const frame = document.getElementById('viewer');
       let lastObjectURL = null;
 
-      const inkCanvases = new Map(); // page -> {canvas,ctx,dpr,dirty}
-      const textBoxes   = new Set(); // DOM nodes for fallback text
+      // Per-page state
+      const pages = new Map(); // pageNum -> { ink: {dpr, canvas, ctx, strokes: [[{xN,yN}...]], widthN}, text: Set<box> }
+      const textBoxes = new Set(); // track for export
 
       function waitForApp(){
         return new Promise(resolve=>{
@@ -122,9 +123,7 @@
           ['gesturestart','gesturechange','gestureend','dblclick'].forEach(t=>{
             addEventListener(t, e => e.preventDefault(), { passive:false });
           });
-          // double-tap blocker inside viewer
           (function(){ let last=0; addEventListener('touchend',e=>{const now=Date.now(); if(now-last<300){ e.preventDefault(); } last=now; },{passive:false}); })();
-          // make main containers non-zoomable/pinch friendly
           try{ document.documentElement.style.touchAction='manipulation';
                document.body.style.touchAction='manipulation'; }catch{}
         `;
@@ -137,7 +136,6 @@
 
       async function ensurePdfLib(){
         if (window.PDFLib) return true;
-        // try local first; then CDN
         const trySrc = src => new Promise(res=>{ const sc=document.createElement('script'); sc.src=src;
           sc.onload=()=>res(true); sc.onerror=()=>res(false); document.body.appendChild(sc); });
         if (await trySrc('/vendor/pdf-lib.min.js')) return true;
@@ -155,8 +153,8 @@
           app.initializedPromise?.then(()=>hardenViewerGestures());
           app.eventBus?.on?.('documentloaded', ()=>{
             if (lastObjectURL) { URL.revokeObjectURL(lastObjectURL); lastObjectURL = null; }
-            detectEditors(app); // hide Ink/Text buttons if native editor missing
-            setupPageHooks(app); // attach fallback overlays to all pages
+            detectEditors(app);
+            installObservers(app);   // NEW: robust page observer
           });
         });
       };
@@ -207,41 +205,65 @@
         const raw = await app.pdfDocument.getData();
         const pdfDoc = await window.PDFLib.PDFDocument.load(raw);
 
-        // Ink flatten
-        for (const [pageNum, obj] of inkCanvases){
-          if (!obj?.dirty) continue;
+        // INK flatten (render current canvas as PNG at correct PDF point size)
+        for (const [pageNum, st] of pages){
+          if (!st.ink || !st.ink.strokes.length) continue;
           const pv = app.pdfViewer.getPageView(pageNum-1);
-          const vp = pv.viewport;
-          const dpr = obj.dpr || devicePixelRatio || 1;
-          const widthPts  = obj.canvas.width  / dpr / vp.scale;
-          const heightPts = obj.canvas.height / dpr / vp.scale;
-          const png = await pdfDoc.embedPng(obj.canvas.toDataURL('image/png'));
+          const vp = pv.viewport;               // points at scale=1 * scale
+          const widthPts  = vp.width;
+          const heightPts = vp.height;
+
+          // Render strokes to an offscreen canvas at current pixel density
+          const off = document.createElement('canvas');
+          // Render at 1x PDF points resolution -> scale up strokes accordingly
+          off.width  = Math.ceil(widthPts);
+          off.height = Math.ceil(heightPts);
+          const octx = off.getContext('2d');
+          octx.lineCap='round'; octx.lineJoin='round'; octx.strokeStyle='#111';
+
+          // Draw from normalized coords to points
+          for (const stroke of st.ink.strokes){
+            const pts = stroke.points;
+            if (pts.length < 2) continue;
+            octx.lineWidth = Math.max(1, stroke.widthN * Math.min(widthPts,heightPts));
+            octx.beginPath();
+            octx.moveTo(pts[0].xN*widthPts, (1-pts[0].yN)*heightPts);
+            for (let i=1;i<pts.length;i++){
+              octx.lineTo(pts[i].xN*widthPts, (1-pts[i].yN)*heightPts);
+            }
+            octx.stroke();
+          }
+
+          const png = await pdfDoc.embedPng(off.toDataURL('image/png'));
           const page = pdfDoc.getPage(pageNum-1);
           page.drawImage(png, { x: 0, y: 0, width: widthPts, height: heightPts });
         }
 
-        // Text flatten
+        // TEXT flatten (normalized box → points)
         for (const box of textBoxes){
           if (!box.isConnected) continue;
           const pageDiv = box.closest('.page'); if (!pageDiv) continue;
           const pageNum = +pageDiv.getAttribute('data-page-number');
           const pv = app.pdfViewer.getPageView(pageNum-1);
-          const vp = pv.viewport;
-          const pr = pageDiv.getBoundingClientRect();
-          const br = box.getBoundingClientRect();
-          const leftPx = br.left - pr.left, topPx = br.top - pr.top;
-          const widthPx = br.width, heightPx = br.height;
-          const widthPts  = widthPx / vp.scale;
-          const heightPts = heightPx / vp.scale;
-          const xPts = leftPx / vp.scale;
-          const yPts = vp.height - ((topPx + heightPts) / vp.scale);
+          const vp = pv.viewport; // width/height in points at current scale; but our normalized uses scale-invariant
+          const widthPts  = vp.width; const heightPts = vp.height;
+
+          const xN = parseFloat(box.dataset.xn);
+          const yN = parseFloat(box.dataset.yn);
+          const wN = parseFloat(box.dataset.wn);
+          const hN = parseFloat(box.dataset.hn);
+
+          const xPts = xN * widthPts;
+          const yPts = (1 - yN - hN) * heightPts; // CSS top-left → PDF bottom-left
+          const maxW = Math.max(8, wN * widthPts);
           const page = pdfDoc.getPage(pageNum-1);
           const text = box.textContent || '';
           page.drawText(text, {
             x: xPts, y: yPts + 4,
-            size: Math.max(8, Math.min(24, 12 / vp.scale)),
+            size: Math.max(8, Math.min(24, 12)),
             color: window.PDFLib.rgb(0,0,0),
-            maxWidth: widthPts, lineHeight: 1.25
+            maxWidth: maxW,
+            lineHeight: 1.25
           });
         }
 
@@ -256,30 +278,222 @@
         else { const a=document.createElement('a'); a.href=url; a.download=fname; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
       };
 
-      /* ---------- Fallback systems ---------- */
-
-      // Attach per-page hooks so overlays always size/realign with zoom/rerender
-      function setupPageHooks(app){
+      /* ---------- Robust page hooks (MutationObserver) ---------- */
+      function installObservers(app){
         const doc = frame.contentDocument; if (!doc) return;
         const container = doc.getElementById('viewer'); if (!container) return;
 
-        // Ensure canvases/text stay sized to the page on zoom or render
+        // Create overlays when pages appear
+        const ensurePageState = (pageDiv) => {
+          const n = +pageDiv.getAttribute('data-page-number');
+          if (pages.has(n)) return pages.get(n);
+          pageDiv.style.position='relative';
+
+          // per-page state
+          const state = {
+            ink: { dpr: Math.max(devicePixelRatio||1,1), canvas:null, ctx:null, strokes:[] }, // strokes in normalized coords
+            texts: new Set()
+          };
+          pages.set(n, state);
+
+          // add canvas
+          const c = doc.createElement('canvas'); c.className='ts-ink'; pageDiv.appendChild(c);
+          state.ink.canvas = c; state.ink.ctx = c.getContext('2d');
+          resizeInkCanvas(n, pageDiv);
+
+          // pointer drawing → normalized strokes
+          let drawing=false, lastXN=0, lastYN=0, currentStroke=null;
+          c.addEventListener('pointerdown', e=>{
+            drawing=true; c.setPointerCapture(e.pointerId);
+            const {xN,yN} = clientToNorm(e, c);
+            currentStroke = { widthN: (2.5 / 800), points: [{xN,yN}] }; // width normalized to ~800px page height
+            lastXN=xN; lastYN=yN; e.preventDefault();
+          },{passive:false});
+          c.addEventListener('pointermove', e=>{
+            if(!drawing) return;
+            const {xN,yN} = clientToNorm(e, c);
+            // draw segment in device pixels
+            drawInkSegment(state, lastXN, lastYN, xN, yN);
+            currentStroke.points.push({xN,yN});
+            lastXN=xN; lastYN=yN;
+          });
+          c.addEventListener('pointerup', e=>{
+            if (drawing && currentStroke){ state.ink.strokes.push(currentStroke); }
+            drawing=false; try{c.releasePointerCapture(e.pointerId);}catch{}
+          });
+          c.addEventListener('pointercancel', ()=>{ drawing=false; });
+
+          return state;
+        };
+
+        // Observe added pages
+        const mo = new MutationObserver(muts=>{
+          for (const m of muts){
+            for (const node of m.addedNodes){
+              if (node.nodeType===1 && node.classList.contains('page')) ensurePageState(node);
+            }
+          }
+        });
+        mo.observe(container, { childList:true });
+
+        // Backfill existing pages
+        container.querySelectorAll('.page').forEach(p=>ensurePageState(p));
+
+        // Redraw on rerender/zoom
         app.eventBus?.on?.('pagerendered', ({pageNumber})=>{
           const pageDiv = container.querySelector(`.page[data-page-number="${pageNumber}"]`);
           if (!pageDiv) return;
-          const r = pageDiv.getBoundingClientRect();
-          const entry = inkCanvases.get(pageNumber);
-          if (entry){
-            const { canvas, dpr } = entry;
-            canvas.width = Math.round(r.width * dpr);
-            canvas.height= Math.round(r.height * dpr);
-            canvas.style.width = r.width+'px';
-            canvas.style.height= r.height+'px';
-          }
+          resizeInkCanvas(pageNumber, pageDiv);
+          redrawInk(pageNumber, pageDiv);
+          repositionTextBoxes(pageDiv);
         });
         app.eventBus?.on?.('scalechanging', ()=>{
-          // trigger rerender takes care of size via 'pagerendered'
+          // pagerendered will follow for each page; nothing else needed
         });
+      }
+
+      function clientToNorm(e, canvas){
+        const r = canvas.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width;   // 0..1
+        const y = (e.clientY - r.top)  / r.height;  // 0..1 (top)
+        return { xN: Math.max(0, Math.min(1, x)), yN: Math.max(0, Math.min(1, y)) };
+      }
+
+      function resizeInkCanvas(pageNum, pageDiv){
+        const st = pages.get(pageNum); if (!st) return;
+        const c = st.ink.canvas; const dpr = st.ink.dpr;
+        const r = pageDiv.getBoundingClientRect();
+        c.width  = Math.round(r.width * dpr);
+        c.height = Math.round(r.height * dpr);
+        c.style.width  = r.width + 'px';
+        c.style.height = r.height + 'px';
+        st.ink.ctx.setTransform(1,0,0,1,0,0);
+        st.ink.ctx.lineCap='round'; st.ink.ctx.lineJoin='round'; st.ink.ctx.strokeStyle='#111';
+      }
+
+      function drawInkSegment(st, xN1, yN1, xN2, yN2){
+        const c = st.ink.canvas, ctx = st.ink.ctx, dpr = st.ink.dpr;
+        const w = c.width / dpr, h = c.height / dpr;
+        ctx.beginPath();
+        ctx.lineWidth = 2.5 * dpr; // visual width; normalized stored separately
+        ctx.moveTo(xN1*w*dpr, yN1*h*dpr);
+        ctx.lineTo(xN2*w*dpr, yN2*h*dpr);
+        ctx.stroke();
+      }
+
+      function redrawInk(pageNum, pageDiv){
+        const st = pages.get(pageNum); if (!st) return;
+        const c = st.ink.canvas, ctx = st.ink.ctx, dpr = st.ink.dpr;
+        ctx.clearRect(0,0,c.width,c.height);
+        const w = c.width / dpr, h = c.height / dpr;
+        ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#111';
+        for (const stroke of st.ink.strokes){
+          const pts = stroke.points; if (pts.length<2) continue;
+          ctx.lineWidth = 2.5 * dpr; // map widthN if you want variable pen later
+          ctx.beginPath();
+          ctx.moveTo(pts[0].xN*w*dpr, pts[0].yN*h*dpr);
+          for (let i=1;i<pts.length;i++){
+            ctx.lineTo(pts[i].xN*w*dpr, pts[i].yN*h*dpr);
+          }
+          ctx.stroke();
+        }
+      }
+
+      function enableInkFallback(app){
+        // Just ensure overlays exist; observer + pagerendered will handle the rest
+        const doc = frame.contentDocument; const container = doc.getElementById('viewer'); if (!container) return;
+        container.querySelectorAll('.page').forEach(p=>{
+          const n = +p.getAttribute('data-page-number');
+          if (!pages.has(n)) return; // observer will create
+        });
+        alert('Ink: draw directly on pages. (Fallback active)');
+      }
+
+      function enableTextFallback(app){
+        const doc = frame.contentDocument; const container = doc.getElementById('viewer'); if (!container) return;
+
+        const onClick = (ev)=>{
+          const pageDiv = ev.target.closest('.page'); if (!pageDiv) return;
+          const r = pageDiv.getBoundingClientRect();
+          const x = ev.clientX - r.left, y = ev.clientY - r.top;
+
+          // normalized coords
+          const xN = Math.max(0, Math.min(1, x / r.width));
+          const yN = Math.max(0, Math.min(1, y / r.height));
+          const wN = 200 / r.width;  // default ~200px wide
+          const hN = 40  / r.height; // default ~40px high
+
+          const box = doc.createElement('div'); box.className='ts-text'; box.contentEditable='true'; box.textContent='Type…';
+          box.dataset.xn = xN; box.dataset.yn = yN; box.dataset.wn = wN; box.dataset.hn = hN;
+          placeTextBox(box, pageDiv);
+          textBoxes.add(box);
+          box.focus();
+
+          // drag
+          let dragging=false,sx=0,sy=0,bl=0,bt=0;
+          box.addEventListener('pointerdown',(e)=>{ if(e.target===box){ dragging=true; box.setPointerCapture(e.pointerId); sx=e.clientX; sy=e.clientY; const st=getBoxPx(box,pageDiv); bl=st.left; bt=st.top; e.preventDefault(); } },{passive:false});
+          box.addEventListener('pointermove',(e)=>{ if(!dragging) return; const dx=e.clientX-sx, dy=e.clientY-sy;
+            moveTextBoxPx(box,pageDiv, bl+dx, bt+dy);
+          });
+          box.addEventListener('pointerup',(e)=>{ dragging=false; try{box.releasePointerCapture(e.pointerId);}catch{} });
+
+          // resize
+          const handle=doc.createElement('div'); handle.className='ts-text-handle'; box.appendChild(handle);
+          let resizing=false,rsx=0,rsy=0,bw=0,bh=0;
+          handle.addEventListener('pointerdown',(e)=>{ e.stopPropagation(); resizing=true; handle.setPointerCapture(e.pointerId); rsx=e.clientX; rsy=e.clientY; const st=getBoxPx(box,pageDiv); bw=st.width; bh=st.height; });
+          handle.addEventListener('pointermove',(e)=>{ if(!resizing) return; const dx=e.clientX-rsx, dy=e.clientY-rsy; sizeTextBoxPx(box,pageDiv, bw+dx, bh+dy); });
+          handle.addEventListener('pointerup',(e)=>{ resizing=false; try{handle.releasePointerCapture(e.pointerId);}catch{} });
+
+          // delete when empty
+          box.addEventListener('keydown',(e)=>{ if((e.key==='Backspace'||e.key==='Delete') && box.textContent.trim()===''){ textBoxes.delete(box); box.remove(); } });
+
+          container.removeEventListener('click', onClick, true);
+        };
+
+        container.addEventListener('click', onClick, true);
+        alert('Text: tap a page to place. Drag to move, resize with the dot. (Fallback active)');
+      }
+
+      function getBoxPx(box, pageDiv){
+        return {
+          left: parseFloat(box.style.left)||0,
+          top:  parseFloat(box.style.top)||0,
+          width: parseFloat(box.style.width)||box.offsetWidth,
+          height: parseFloat(box.style.height)||box.offsetHeight,
+          page: pageDiv.getBoundingClientRect()
+        };
+      }
+      function moveTextBoxPx(box, pageDiv, L, T){
+        const pr = pageDiv.getBoundingClientRect();
+        const w = (parseFloat(box.style.width)||box.offsetWidth);
+        const h = (parseFloat(box.style.height)||box.offsetHeight);
+        L = Math.max(0, Math.min(L, pr.width - w));
+        T = Math.max(0, Math.min(T, pr.height - h));
+        box.style.left = L+'px'; box.style.top = T+'px';
+        // update normalized
+        box.dataset.xn = (L / pr.width);
+        box.dataset.yn = (T / pr.height);
+      }
+      function sizeTextBoxPx(box, pageDiv, W, H){
+        const pr = pageDiv.getBoundingClientRect();
+        W = Math.max(40, Math.min(W, pr.width));
+        H = Math.max(20, Math.min(H, pr.height));
+        box.style.width = W+'px'; box.style.height = H+'px';
+        box.dataset.wn = (W / pr.width);
+        box.dataset.hn = (H / pr.height);
+      }
+      function placeTextBox(box, pageDiv){
+        pageDiv.style.position='relative';
+        const pr = pageDiv.getBoundingClientRect();
+        pageDiv.appendChild(box);
+        // apply normalized → px
+        box.style.left = (parseFloat(box.dataset.xn) * pr.width)  + 'px';
+        box.style.top  = (parseFloat(box.dataset.yn) * pr.height) + 'px';
+        box.style.width= (parseFloat(box.dataset.wn) * pr.width)  + 'px';
+        box.style.height=(parseFloat(box.dataset.hn) * pr.height) + 'px';
+      }
+      function repositionTextBoxes(pageDiv){
+        pageDiv.querySelectorAll('.ts-text').forEach(box=>placeTextBox(box, pageDiv));
       }
 
       function detectEditors(app){
@@ -292,75 +506,6 @@
           if (!hasUI && !hasTextId) document.getElementById('tsText').style.display = 'none';
         } catch {}
       }
-
-      function enableInkFallback(app){
-        const doc = frame.contentDocument; const container = doc.getElementById('viewer'); if (!container) return;
-        const pages = Array.from(container.querySelectorAll('.page'));
-        for (const pageDiv of pages){
-          pageDiv.style.position='relative';
-          const n = +pageDiv.getAttribute('data-page-number');
-          if (inkCanvases.has(n)) continue;
-          const c = doc.createElement('canvas'); c.className='ts-ink'; pageDiv.appendChild(c);
-          const dpr = Math.max(devicePixelRatio||1, 1);
-          const r = pageDiv.getBoundingClientRect();
-          c.width = Math.round(r.width*dpr); c.height=Math.round(r.height*dpr);
-          c.style.width=r.width+'px'; c.style.height=r.height+'px';
-          const ctx = c.getContext('2d'); ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#111'; ctx.lineWidth=2.5*dpr;
-          inkCanvases.set(n,{canvas:c,ctx,dpr,dirty:false});
-
-          let drawing=false,lx=0,ly=0;
-          c.addEventListener('pointerdown', e=>{ drawing=true; c.setPointerCapture(e.pointerId);
-            const b=c.getBoundingClientRect(); lx=(e.clientX-b.left)*dpr; ly=(e.clientY-b.top)*dpr; e.preventDefault();
-          },{passive:false});
-          c.addEventListener('pointermove', e=>{ if(!drawing) return; const b=c.getBoundingClientRect();
-            const x=(e.clientX-b.left)*dpr, y=(e.clientY-b.top)*dpr; ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(x,y); ctx.stroke(); lx=x; ly=y; inkCanvases.get(n).dirty=true;
-          });
-          c.addEventListener('pointerup', e=>{ drawing=false; try{c.releasePointerCapture(e.pointerId);}catch{} });
-          c.addEventListener('pointercancel', ()=>{ drawing=false; });
-        }
-        alert('Ink: draw on the page. (Using TurboSign fallback)');
-      }
-
-      function enableTextFallback(app){
-        const doc = frame.contentDocument; const container = doc.getElementById('viewer'); if (!container) return;
-        const onClick = (ev)=>{
-          const pageDiv = ev.target.closest('.page'); if (!pageDiv) return;
-          const rect = pageDiv.getBoundingClientRect();
-          const x = ev.clientX - rect.left, y = ev.clientY - rect.top;
-          const box = doc.createElement('div'); box.className='ts-text'; box.contentEditable='true'; box.textContent='Type…';
-          pageDiv.style.position='relative'; pageDiv.appendChild(box); textBoxes.add(box);
-          box.style.left = Math.max(4, Math.min(x-40, rect.width-84))+'px';
-          box.style.top  = Math.max(4, Math.min(y-12, rect.height-24))+'px';
-          box.focus();
-
-          // drag
-          let dragging=false,sx=0,sy=0,bl=0,bt=0;
-          box.addEventListener('pointerdown',(e)=>{ if(e.target===box){ dragging=true; box.setPointerCapture(e.pointerId); sx=e.clientX; sy=e.clientY; bl=parseFloat(box.style.left)||0; bt=parseFloat(box.style.top)||0; e.preventDefault(); } },{passive:false});
-          box.addEventListener('pointermove',(e)=>{ if(!dragging) return; const dx=e.clientX-sx, dy=e.clientY-sy; let L=bl+dx, T=bt+dy;
-            const pr=pageDiv.getBoundingClientRect(); const br=box.getBoundingClientRect();
-            L=Math.max(0,Math.min(L, pr.width-br.width)); T=Math.max(0,Math.min(T, pr.height-br.height));
-            box.style.left=L+'px'; box.style.top=T+'px';
-          });
-          box.addEventListener('pointerup',(e)=>{ dragging=false; try{box.releasePointerCapture(e.pointerId);}catch{} });
-
-          // resize
-          const handle=doc.createElement('div'); handle.className='ts-text-handle'; box.appendChild(handle);
-          let resizing=false,rsx=0,rsy=0,bw=0,bh=0;
-          handle.addEventListener('pointerdown',(e)=>{ e.stopPropagation(); resizing=true; handle.setPointerCapture(e.pointerId); rsx=e.clientX; rsy=e.clientY; bw=box.offsetWidth; bh=box.offsetHeight; });
-          handle.addEventListener('pointermove',(e)=>{ if(!resizing) return; const dx=e.clientX-rsx, dy=e.clientY-rsy; box.style.width=(bw+dx)+'px'; box.style.height=(bh+dy)+'px'; });
-          handle.addEventListener('pointerup',(e)=>{ resizing=false; try{handle.releasePointerCapture(e.pointerId);}catch{} });
-
-          // delete when empty
-          box.addEventListener('keydown',(e)=>{ if((e.key==='Backspace'||e.key==='Delete') && box.textContent.trim()===''){ textBoxes.delete(box); box.remove(); } });
-
-          container.removeEventListener('click', onClick, true);
-        };
-        container.addEventListener('click', onClick, true);
-        alert('Text: tap a page to place. Drag to move, resize with the dot, backspace to remove. (Fallback)');
-      }
-
-      // Initial hardening for built-in viewer (when it first loads even w/o a file)
-      waitForApp().then(()=>hardenViewerGestures());
     })();
   </script>
 </body>
