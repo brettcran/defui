@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -24,16 +25,16 @@
       .ts-btn:active{ transform:translateY(1px); }
       .ts-btn svg{ width:22px; height:22px; display:block }
       .ts-file{ display:none }
-      /* leave room so the viewer content isn't hidden under the dock */
+      /* keep content visible above dock */
       body { padding-bottom:76px; }
     }
   </style>
 </head>
 <body>
-  <!-- Stock PDF.js Default UI (keep /web & /build at repo root) -->
+  <!-- Stock PDF.js Default UI -->
   <iframe id="viewer" src="/web/viewer.html#zoom=page-width"></iframe>
 
-  <!-- TurboSign mobile toolbar overlay -->
+  <!-- TurboSign mobile toolbar (Thumbs removed) -->
   <div class="ts-bar" id="tsBar" aria-label="TurboSign mobile toolbar">
     <button class="ts-btn" id="tsOpen" title="Open">
       <svg viewBox="0 0 24 24" fill="none"><path d="M3 7h5l2 2h11v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" stroke="currentColor" stroke-width="1.6"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 2h6" stroke="currentColor" stroke-width="1.6"/></svg>
@@ -42,10 +43,6 @@
     <button class="ts-btn" id="tsFind" title="Find">
       <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.6"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.6"/></svg>
       <span>Find</span>
-    </button>
-    <button class="ts-btn" id="tsThumbs" title="Thumbnails">
-      <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="8" height="7" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="13" y="4" width="8" height="7" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="13" width="8" height="7" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="13" y="13" width="8" height="7" rx="1" stroke="currentColor" stroke-width="1.6"/></svg>
-      <span>Thumbs</span>
     </button>
     <button class="ts-btn" id="tsZoomOut" title="Zoom out">
       <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7.5" stroke="currentColor" stroke-width="1.6"/><path d="M8 11h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M20 20l-3-3" stroke="currentColor" stroke-width="1.6"/></svg>
@@ -71,7 +68,7 @@
   </div>
 
   <script>
-    // Wire the mobile toolbar to the stock viewer
+    // Wire the mobile toolbar to the stock viewer (robust binding)
     (function(){
       const frame = document.getElementById('viewer');
       if (!frame) return;
@@ -95,7 +92,7 @@
         return false;
       }
 
-      // OPEN
+      // OPEN (local file)
       document.getElementById('tsOpen').onclick = ()=> document.getElementById('tsFile').click();
       document.getElementById('tsFile').onchange = (e)=>{
         const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -107,15 +104,8 @@
       document.getElementById('tsFind').onclick = async ()=>{
         if (!clickInViewer('viewFind')) {
           const app = await waitForApp();
-          app.findBar.open();
+          try { app.findBar.open(); } catch {}
         }
-      };
-
-      // THUMBS (sidebar)
-      document.getElementById('tsThumbs').onclick = async ()=>{
-        const app = await waitForApp();
-        const s = app.pdfSidebar;
-        s.isOpen ? s.close() : (s.open(), s.switchView(1)); // 1=thumbnails
       };
 
       // ZOOM − / +
@@ -132,14 +122,48 @@
         }
       };
 
-      // INK (annotation)
-      document.getElementById('tsInk').onclick = ()=>{
-        if (!clickInViewer('editorInk')) alert('Ink tool not available in this build.');
+      // INK (annotation) — try toolbar id, then event bus/UI manager
+      document.getElementById('tsInk').onclick = async ()=>{
+        if (clickInViewer('editorInk')) return;
+        const app = await waitForApp();
+        try {
+          // Newer builds expose a UI manager
+          app.pdfViewer?.annotationEditorUIManager?.updateMode?.('ink');
+          // Some builds use numeric modes; try that too
+          if (app.pdfViewer?.annotationEditorUIManager?.updateMode) return;
+        } catch {}
+
+        try {
+          // Event bus fallback (PDF.js viewer listens for this)
+          app.eventBus?.dispatch?.('switchannotationeditormode', { source: app, mode: 'ink' });
+        } catch {}
+
+        // If nothing worked, tell the user
+        setTimeout(() => {
+          if (!document.getElementById('viewer').contentDocument.getElementById('editorInk')) {
+            alert('Ink tool is not available in this PDF.js build.');
+          }
+        }, 100);
       };
 
-      // TEXT (free text annotation)
-      document.getElementById('tsText').onclick = ()=>{
-        if (!clickInViewer('editorFreeText')) alert('Text tool not available in this build.');
+      // TEXT (free text)
+      document.getElementById('tsText').onclick = async ()=>{
+        if (clickInViewer('editorFreeText')) return;
+        const app = await waitForApp();
+        try {
+          app.pdfViewer?.annotationEditorUIManager?.updateMode?.('freetext');
+          if (app.pdfViewer?.annotationEditorUIManager?.updateMode) return;
+        } catch {}
+
+        try {
+          app.eventBus?.dispatch?.('switchannotationeditormode', { source: app, mode: 'freetext' });
+        } catch {}
+
+        setTimeout(() => {
+          if (!document.getElementById('viewer').contentDocument.getElementById('editorFreeText')) {
+            alert('Text tool is not available in this PDF.js build.');
+          }
+        }, 100);
       };
 
       // SAVE (download)
