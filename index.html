@@ -37,7 +37,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <style>
     /* Signature modal */
-    .modal{position:fixed;inset:0;display:none;place-items:center;background:rgba(0,0,0,.55);z-index:20}
+    .modal{position:fixed;inset:0;display:none;place-items:center;background:rgba(0,0,0,.55);z-index:10000} .modal.open{display:grid} body.modal-open{overflow:hidden}
     .modal.open{display:grid}
     .sheet{width:min(92vw,900px);max-height:min(88vh,900px);display:grid;grid-template-rows:auto 1fr auto;background:#0f1115;border:1px solid #263041;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.6)}
     .sheet header{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid #1b1e24}
@@ -75,8 +75,9 @@
       <div class="dock">
         <button id="mPrev" class="btn">Prev</button>
         <button id="mNext" class="btn">Next</button>
-        <button id="mDl" class="btn">Download</button>
-      </div>
+        <button id=\"mDl\" class=\"btn\">Download<\/button>
+        <button id=\"mPlace\" class=\"btn\">Place<\/button>
+      <\/div>
     </main>
   </div>
 
@@ -182,8 +183,8 @@
 
     // Modal open/close
     const modal = document.getElementById('sigModal');
-    const openModal = () => { modal.classList.add('open'); modal.setAttribute('aria-hidden','false'); resizePad(); renderGallery(); };
-    const closeModal = () => { modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); };
+    const openModal = () => { modal.classList.add('open'); modal.setAttribute('aria-hidden','false'); document.body.classList.add('modal-open'); try{ document.getElementById('viewer').style.pointerEvents='none'; }catch(_){} resizePad(); renderGallery(); if(!window.SignaturePad){ alert('SignaturePad failed to load. Check network / CDN.'); } };
+    const closeModal = () => { modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); document.body.classList.remove('modal-open'); try{ document.getElementById('viewer').style.pointerEvents=''; }catch(_){} };
     document.getElementById('sign').addEventListener('click', openModal);
     document.getElementById('closeSig').addEventListener('click', closeModal);
     document.getElementById('closeSig2').addEventListener('click', closeModal);
@@ -202,7 +203,7 @@
       if (sigPad) sigPad.clear();
       sigPad = new SignaturePad(padCanvas, { minWidth: penWidth, maxWidth: penWidth+0.8, penColor });
     }
-    new ResizeObserver(resizePad).observe(padCanvas.parentElement);
+    if ('ResizeObserver' in window) { new ResizeObserver(resizePad).observe(padCanvas.parentElement); } else { window.addEventListener('resize', resizePad); }
 
     document.getElementById('penBlack').onclick = () => { penColor = '#111'; sigPad.penColor = penColor; };
     document.getElementById('penBlue').onclick  = () => { penColor = '#0d5bd6'; sigPad.penColor = penColor; };
