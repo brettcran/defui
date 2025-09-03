@@ -1,9 +1,66 @@
 <!doctype html>
-<meta charset="utf-8">
-<title>TurboSign</title>
-<script>
-  // Forward / to /web/viewer.html preserving ?query and #hash
-  var q = location.search || "";
-  var h = location.hash || "";
-  location.replace("/web/viewer.html" + q + h);
-</script>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TurboSign</title>
+  <style>
+    html,body {margin:0;height:100%;}
+    #viewer {border:0;width:100%;height:100%;}
+  </style>
+</head>
+<body>
+  <iframe id="viewer" src="/web/viewer.html#zoom=page-width"></iframe>
+
+  <script>
+    // Inject bigger buttons CSS into the viewer, only on phones (≤768px)
+    (function () {
+      const frame = document.getElementById('viewer');
+      if (!frame) return;
+
+      function waitForApp() {
+        return new Promise(resolve => {
+          const poll = () => {
+            try {
+              const a = frame.contentWindow?.PDFViewerApplication;
+              if (a?.initializedPromise) return a.initializedPromise.then(()=>resolve(a));
+            } catch {}
+            setTimeout(poll, 50);
+          };
+          poll();
+        });
+      }
+
+      (async () => {
+        await waitForApp();
+        const doc = frame.contentDocument;
+        if (!doc) return;
+
+        const style = doc.createElement('style');
+        style.textContent = `
+@media (max-width: 768px) {
+  .toolbarButton,
+  .dropdownToolbarButton,
+  .secondaryToolbarButton,
+  .overlayButton {
+    min-height: 46px;
+    min-width: 46px;
+    padding: 10px 12px;
+    font-size: 16px;
+  }
+  .toolbarButton::before,
+  .secondaryToolbarButton::before,
+  .overlayButton::before {
+    width: 22px; height: 22px;
+    background-size: 22px 22px;
+    -webkit-mask-size: 22px 22px;
+            mask-size: 22px 22px;
+  }
+}
+        `;
+        doc.head.appendChild(style);
+      })();
+    })();
+  </script>
+</body>
+</html>
