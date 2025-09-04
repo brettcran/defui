@@ -803,11 +803,6 @@ See https://github.com/adobe-type-tools/cmap-resources
       // Basic focus
       (this.querySelector("[tabindex],button,input,textarea,select") || this).focus?.();
     };
-    HTMLDialogElement.prototype.close ??= function () {
-      this.removeAttribute("open");
-      const b = document.querySelector(".ts-dialog-backdrop");
-      if (b) b.style.display = "none";
-    };
     // Esc to close
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
