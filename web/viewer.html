@@ -764,5 +764,49 @@ See https://github.com/adobe-type-tools/cmap-resources
 
     </div> <!-- outerContainer -->
     <div id="printContainer"></div>
+    <script type="module">
+/* Enable the built-in Signature editor in the default viewer */
+(async () => {
+  const wait = (test, tries = 200) =>
+    new Promise((res, rej) => {
+      const id = setInterval(() => (test() ? (clearInterval(id), res()) : --tries <= 0 && (clearInterval(id), rej(new Error("timeout")))), 50);
+    });
+
+  await wait(() => window.PDFViewerApplication?.eventBus);
+  const App = window.PDFViewerApplication;
+  const Opt = window.PDFViewerApplicationOptions;
+
+  // 1) Turn the feature on at the option level (newer builds honor this)
+  try { Opt?.set?.("enableSignatureEditor", true); } catch {}
+
+  // 2) Ensure the Signature UI is visible and enabled when the viewer/doc is ready
+  const enableSignatureUI = () => {
+    const sigBlock = document.getElementById("editorSignature");
+    const sigBtn   = document.getElementById("editorSignatureButton");
+    if (sigBlock) sigBlock.hidden = false;
+    if (sigBtn)   sigBtn.disabled = false;
+  };
+
+  App.eventBus.on("initialized", enableSignatureUI);
+  App.eventBus.on("documentloaded", enableSignatureUI);
+
+  // 3) OPTIONAL: auto-open the “Add Signature” dialog the first time you tap Signature
+  const hookOnce = () => {
+    const sigBtn = document.getElementById("editorSignatureButton");
+    if (!sigBtn) return;
+    const openOnce = async () => {
+      // Wait for the params doorhanger to be in the DOM
+      await wait(() => document.getElementById("editorSignatureParamsToolbar"));
+      const addBtn = document.getElementById("editorSignatureAddSignature");
+      if (addBtn) addBtn.click(); // opens the modal with Type/Draw/Image tabs
+      sigBtn.removeEventListener("click", openOnce);
+    };
+    sigBtn.addEventListener("click", openOnce, { once: false });
+  };
+
+  App.eventBus.on("initialized", hookOnce);
+  App.eventBus.on("documentloaded", hookOnce);
+})();
+</script>
   </body>
 </html>
