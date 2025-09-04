@@ -764,48 +764,66 @@ See https://github.com/adobe-type-tools/cmap-resources
 
     </div> <!-- outerContainer -->
     <div id="printContainer"></div>
-    <script type="module">
-/* Enable the built-in Signature editor in the default viewer */
-(async () => {
-  const wait = (test, tries = 200) =>
-    new Promise((res, rej) => {
-      const id = setInterval(() => (test() ? (clearInterval(id), res()) : --tries <= 0 && (clearInterval(id), rej(new Error("timeout")))), 50);
+  <script type="module">
+/* TurboSign: make Signature usable; reliably open the Add Signature pad */
+(() => {
+  const wait = (cond, tries = 200, ms = 50) =>
+    new Promise((resolve, reject) => {
+      (function tick(n){
+        try { if (cond()) return resolve(); } catch(_) {}
+        if (n <= 0) return reject(new Error("timeout"));
+        setTimeout(() => tick(n - 1), ms);
+      })(tries);
     });
 
-  await wait(() => window.PDFViewerApplication?.eventBus);
-  const App = window.PDFViewerApplication;
-  const Opt = window.PDFViewerApplicationOptions;
+  (async function init() {
+    // Wait for viewer boot
+    await wait(() => window.PDFViewerApplication?.eventBus);
+    const App = window.PDFViewerApplication;
+    const bus = App.eventBus;
+    const Opt = window.PDFViewerApplicationOptions;
 
-  // 1) Turn the feature on at the option level (newer builds honor this)
-  try { Opt?.set?.("enableSignatureEditor", true); } catch {}
+    // Ensure the editor features and buttons are enabled/visible after a doc loads
+    const enableEditors = () => {
+      try { Opt?.set?.("enableSignatureEditor", true); } catch {}
+      ["editorFreeTextButton","editorInkButton","editorSignatureButton"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = false;
+      });
+      const sigBlock = document.getElementById("editorSignature");
+      if (sigBlock) sigBlock.hidden = false;
 
-  // 2) Ensure the Signature UI is visible and enabled when the viewer/doc is ready
-  const enableSignatureUI = () => {
-    const sigBlock = document.getElementById("editorSignature");
-    const sigBtn   = document.getElementById("editorSignatureButton");
-    if (sigBlock) sigBlock.hidden = false;
-    if (sigBtn)   sigBtn.disabled = false;
-  };
+      // Hook the Signature button to open the door-hanger and then click "Add Signature"
+      const sigBtn = document.getElementById("editorSignatureButton");
+      if (!sigBtn || sigBtn.__tsHooked) return;
+      sigBtn.__tsHooked = true;
 
-  App.eventBus.on("initialized", enableSignatureUI);
-  App.eventBus.on("documentloaded", enableSignatureUI);
+      sigBtn.addEventListener("click", async () => {
+        try {
+          // Wait until the params toolbar exists and is not hidden
+          await wait(() => {
+            const panel = document.getElementById("editorSignatureParamsToolbar");
+            return panel && !panel.classList.contains("hidden");
+          }, 100, 50);
 
-  // 3) OPTIONAL: auto-open the “Add Signature” dialog the first time you tap Signature
-  const hookOnce = () => {
-    const sigBtn = document.getElementById("editorSignatureButton");
-    if (!sigBtn) return;
-    const openOnce = async () => {
-      // Wait for the params doorhanger to be in the DOM
-      await wait(() => document.getElementById("editorSignatureParamsToolbar"));
-      const addBtn = document.getElementById("editorSignatureAddSignature");
-      if (addBtn) addBtn.click(); // opens the modal with Type/Draw/Image tabs
-      sigBtn.removeEventListener("click", openOnce);
+          const addBtn = document.getElementById("editorSignatureAddSignature");
+          if (addBtn) {
+            // Small microtask delay lets layout/aria settle on some builds
+            setTimeout(() => addBtn.click(), 0);
+          }
+        } catch (e) {
+          console.warn("Signature params toolbar didn’t open in time:", e);
+        }
+      }, { passive: true });
     };
-    sigBtn.addEventListener("click", openOnce, { once: false });
-  };
 
-  App.eventBus.on("initialized", hookOnce);
-  App.eventBus.on("documentloaded", hookOnce);
+    // Run on init + whenever a document finishes loading
+    bus.on("initialized", enableEditors);
+    bus.on("documentloaded", enableEditors);
+
+    // If we’re already past those events, try now
+    try { enableEditors(); } catch {}
+  })();
 })();
 </script>
   </body>
