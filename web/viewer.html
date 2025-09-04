@@ -765,102 +765,107 @@ See https://github.com/adobe-type-tools/cmap-resources
     </div> <!-- outerContainer -->
     <div id="printContainer"></div>
   <script type="module">
-/* TurboSign: reliably open the built-in Add Signature dialog on all browsers */
-
+/* TurboSign: enable Signature editors, open via overlayManager, force working Draw/Image */
 (() => {
-  // ---- Minimal <dialog> polyfill (only if needed) ----
-  const needsDialogPolyfill = !("HTMLDialogElement" in window) ||
-                              !("showModal" in HTMLDialogElement.prototype);
-
-  if (needsDialogPolyfill) {
-    const STYLE_ID = "ts-dialog-polyfill-style";
-    if (!document.getElementById(STYLE_ID)) {
-      const s = document.createElement("style");
-      s.id = STYLE_ID;
-      s.textContent = `
-      dialog[open]{display:block;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
-        background:#fff;color:#000;max-width:95vw;max-height:90vh;border:0;border-radius:8px;
-        box-shadow:0 12px 40px rgba(0,0,0,.35);padding:0;z-index:100001}
-      .ts-dialog-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100000}
-      `;
-      document.head.appendChild(s);
-    }
-    const ensureBackdrop = () => {
-      let b = document.querySelector(".ts-dialog-backdrop");
-      if (!b) {
-        b = document.createElement("div");
-        b.className = "ts-dialog-backdrop";
-        b.addEventListener("click", () => {
-          document.querySelectorAll("dialog[open]").forEach(d => d.close && d.close());
-        });
-        document.body.appendChild(b);
-      }
-      return b;
-    };
-    HTMLDialogElement.prototype.showModal ??= function () {
-      this.setAttribute("open", "");
-      ensureBackdrop().style.display = "block";
-      // Basic focus
-      (this.querySelector("[tabindex],button,input,textarea,select") || this).focus?.();
-    };
-    // Esc to close
-    window.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        const top = document.querySelector("dialog[open]");
-        if (top) { e.preventDefault(); top.close(); }
-      }
-    });
-  }
-
-  // ---- PDF.js integration ----
   const wait = (cond, tries = 200, ms = 50) =>
-    new Promise((resolve, reject) => {
-      (function tick(n){
-        try { if (cond()) return resolve(); } catch(_) {}
-        if (n <= 0) return reject(new Error("timeout"));
-        setTimeout(() => tick(n - 1), ms);
+    new Promise((res, rej) => {
+      (function tick(n){ try { if (cond()) return res(); } catch{}
+        if (n <= 0) return rej(new Error("timeout"));
+        setTimeout(() => tick(n-1), ms);
       })(tries);
     });
 
-  const openAddSignature = async () => {
-    await wait(() => window.PDFViewerApplication?.overlayManager && document.getElementById("addSignatureDialog"));
-    const App = window.PDFViewerApplication;
-    const dlg = document.getElementById("addSignatureDialog");
-
-    // Prefer PDF.js overlay manager if available (handles focus/backdrop)
-    if (App?.overlayManager?.open) {
-      try { await App.overlayManager.open(dlg); return; } catch (_) {}
-    }
-    // Fallback: native/ polyfilled dialog
-    if (dlg?.showModal) dlg.showModal();
+  const markOverlayOpen = (on) => {
+    document.documentElement.classList.toggle("ts-overlay-open", on);
+    document.body.classList.toggle("ts-overlay-open", on);
   };
 
-  const enableSignature = () => {
-    // Make sure the signature UI is visible & enabled
-    const sigBlock = document.getElementById("editorSignature");
-    const sigBtn   = document.getElementById("editorSignatureButton");
-    if (sigBlock) sigBlock.hidden = false;
-    if (sigBtn)   sigBtn.disabled = false;
+  const ensureOptions = () => {
+    const Opt = window.PDFViewerApplicationOptions;
+    try {
+      // Turn on every relevant editor explicitly (works across recent releases)
+      Opt?.set?.("enableSignatureEditor", true);
+      Opt?.set?.("enableStampEditor", true);
+      Opt?.set?.("enableFreeTextEditor", true);
+      Opt?.set?.("enableInkEditor", true);
+      Opt?.set?.("enableHighlightEditor", true);
+      // Make sure editor UI is visible rather than text-selection only
+      // 0 = disabled, 1 = free text, 2 = ink, 3 = highlight (varies by build)
+      // We don't lock a mode here — we just ensure editors aren't suppressed.
+      Opt?.set?.("enableScripting", true); // harmless; some builds gate UI on this
+    } catch {}
+  };
 
-    // One-time hook: click Signature → open Add Signature modal
-    if (sigBtn && !sigBtn.__tsHooked) {
-      sigBtn.__tsHooked = true;
-      sigBtn.addEventListener("click", () => {
-        // Door-hanger sometimes appears first; we just open the modal directly.
-        setTimeout(openAddSignature, 0);
-      }, { passive: true });
+  const enableSignatureUI = () => {
+    // Unhide and enable the toolbar block/button, regardless of default state
+    const block = document.getElementById("editorSignature");
+    const btn   = document.getElementById("editorSignatureButton");
+    if (block) block.hidden = false;
+    if (btn)   btn.disabled = false;
+  };
+
+  const observeDialog = (dlg) => {
+    if (!dlg || dlg.__tsObserved) return;
+    dlg.__tsObserved = true;
+    // Toggle .ts-overlay-open so background can't steal pointers
+    const mo = new MutationObserver(() => {
+      markOverlayOpen(dlg.hasAttribute("open"));
+    });
+    mo.observe(dlg, { attributes: true, attributeFilter: ["open"] });
+
+    // Make file picker mobile-friendly
+    const file = dlg.querySelector("#addSignatureFilePicker");
+    if (file) file.setAttribute("accept", "image/*");
+  };
+
+  const switchToTab = (tab /* 'type'|'draw'|'image' */) => {
+    const container = document.getElementById("addSignatureActionContainer");
+    if (container) container.setAttribute("data-selected", tab);
+    const map = {
+      type:  "addSignatureTypeButton",
+      draw:  "addSignatureDrawButton",
+      image: "addSignatureImageButton",
+    };
+    document.getElementById(map[tab])?.click();
+    if (tab === "draw") {
+      // Focus the SVG so pointer events are hot and the pad is ready
+      setTimeout(() => document.getElementById("addSignatureDraw")?.focus?.(), 50);
     }
+  };
+
+  const openSignatureDialog = async (defaultTab = "draw") => {
+    const App = window.PDFViewerApplication;
+    await wait(() => App?.overlayManager && document.getElementById("addSignatureDialog"));
+    const dlg = document.getElementById("addSignatureDialog");
+
+    // Use the official overlay manager so Cancel/Add are wired by PDF.js
+    await App.overlayManager.open("addSignatureDialog");
+    observeDialog(dlg);
+    switchToTab(defaultTab);
   };
 
   (async function boot() {
     await wait(() => window.PDFViewerApplication?.eventBus);
-    const bus = window.PDFViewerApplication.eventBus;
-    bus.on("initialized", enableSignature);
-    bus.on("documentloaded", enableSignature);
-    // If already ready, run now
-    try { enableSignature(); } catch {}
+    ensureOptions();
+
+    const App = window.PDFViewerApplication;
+    const bus = App.eventBus;
+
+    const wire = () => {
+      enableSignatureUI();
+      const btn = document.getElementById("editorSignatureButton");
+      if (btn && !btn.__tsHooked) {
+        btn.__tsHooked = true;
+        btn.addEventListener("click", () => openSignatureDialog("draw"), { passive: true });
+      }
+    };
+
+    bus.on("initialized", wire);
+    bus.on("documentloaded", wire);
+    // In case we're already initialized
+    try { wire(); } catch {}
   })();
 })();
-</script>>
+</script>
   </body>
 </html>
