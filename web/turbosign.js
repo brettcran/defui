@@ -1,11 +1,11 @@
 // TurboSign: Mobile "Fill & Sign" behavior for stock PDF.js
-// - Enables Signature editor
-// - Forces vertical scroll + no spreads on mobile
-// - Blocks Safari page-level double-tap/pinch zoom (PDF.js handles zoom itself)
+// - Enable Signature editor
+// - Force vertical scroll + no spreads on mobile
+// - Block Safari page-level double-tap/pinch zoom
 (() => {
   const isMobile = matchMedia('(max-width: 768px)').matches;
 
-  // 1) Block page-level zoom gestures on mobile (Safari)
+  // 1) Kill page-level zoom gestures (Safari)
   if (isMobile) {
     let last = 0;
     window.addEventListener('touchend', e => {
@@ -14,7 +14,7 @@
       last = now;
     }, { passive: false });
 
-    ['gesturestart', 'gesturechange', 'gestureend', 'dblclick'].forEach(t => {
+    ['gesturestart','gesturechange','gestureend','dblclick'].forEach(t => {
       window.addEventListener(t, e => e.preventDefault(), { passive: false });
     });
 
@@ -24,11 +24,13 @@
     } catch {}
   }
 
-  // 2) Before init: enable signature editor (UI still obeys PDF permissions)
+  // 2) Before init: make sure highlight/signature editors are allowed
   document.addEventListener('webviewerloaded', () => {
     const Opt = window.PDFViewerApplicationOptions;
     if (!Opt) return;
     try { Opt.set('enableSignatureEditor', true); } catch {}
+    // Highlight is part of the annotation editor set and is enabled by default in your build;
+    // no option flip needed unless your distro gated it.
   }, { once: true });
 
   // 3) After init: force vertical scroll + no spreads on mobile
