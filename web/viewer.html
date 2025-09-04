@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- TurboSign Mobile-First PDF.js Viewer using native Signature (v5+) -->
+<!-- TurboSign Mobile-First PDF.js Viewer (v5+) - Stock toolbar layout with signature fixes -->
 <html dir="ltr" mozdisallowselectionprint>
   <head>
     <meta charset="utf-8" />
@@ -11,22 +11,28 @@
     <link rel="resource" type="application/l10n" href="locale/locale.json" />
     <script src="../build/pdf.mjs" type="module"></script>
 
-    <!-- Project styles (left UNCHANGED) -->
-    <link rel="stylesheet" href="viewer.css" />
-
-    <!-- PDF.js viewer bootstrap (keep your existing viewer.mjs) -->
+    <!-- Default viewer script -->
     <script src="viewer.mjs" type="module"></script>
 
-    <!-- Mobile-first overrides (small, safe; no change to viewer.css) -->
+    <!-- Project styles -->
+    <link rel="stylesheet" href="viewer.css" />
+
+    <!-- Overrides per your requirements -->
     <style>
-      /* Hide Ink & Highlight tools entirely */
+      /* Hide Ink & Highlight tools */
       #editorInk, #editorHighlight { display: none !important; }
 
-      /* Hide zoom +/- but keep scale select */
+      /* Hide zoom +/-; keep scale selector */
       #zoomInButton, #zoomOutButton { display: none !important; }
 
-      /* Keep Open and Save visible */
-      #openFile, #downloadButton { display: inline-flex !important; }
+      /* Hide scroll & spread toggles in secondary menu */
+      #scrollModeButtons, #spreadModeButtons { display: none !important; }
+
+      /* Hide file properties item in secondary menu */
+      #documentProperties { display: none !important; }
+
+      /* Keep vertical scrolling */
+      #viewerContainer { overscroll-behavior: contain; }
 
       /* Touch-friendly sizing */
       @media (pointer: coarse) {
@@ -36,9 +42,6 @@
           font-size: 16px;
         }
       }
-
-      /* Prevent background scroll jitter during dialogs */
-      body[aria-busy="true"] { overflow: hidden; touch-action: none; }
     </style>
   </head>
 
@@ -120,7 +123,7 @@
                     <div id="findbarOptionsTwoContainer" class="toolbarHorizontalGroup">
                       <div class="toggleButton toolbarLabel">
                         <input type="checkbox" id="findMatchDiacritics" tabindex="0" />
-                        <label for="findMatchDiacritics" data-l10n-id="pdfjs-find-match-diacritics-checkbox-label"></label>
+                        <label for="findMatchDiacritics" data-l10n-id="pdfjs-find-diacritics-checkbox-label"></label>
                       </div>
                       <div class="toggleButton toolbarLabel">
                         <input type="checkbox" id="findEntireWord" tabindex="0" />
@@ -134,7 +137,16 @@
                   </div>
                 </div>
 
-                <!-- Page indicator -->
+                <div class="toolbarHorizontalGroup hiddenSmallView">
+                  <button class="toolbarButton" type="button" id="previous" tabindex="0" data-l10n-id="pdfjs-previous-button">
+                    <span data-l10n-id="pdfjs-previous-button-label"></span>
+                  </button>
+                  <div class="splitToolbarButtonSeparator"></div>
+                  <button class="toolbarButton" type="button" id="next" tabindex="0" data-l10n-id="pdfjs-next-button">
+                    <span data-l10n-id="pdfjs-next-button-label"></span>
+                  </button>
+                </div>
+
                 <div class="toolbarHorizontalGroup">
                   <span class="loadingInput start toolbarHorizontalGroup">
                     <input type="number" id="pageNumber" class="toolbarField" value="1" min="1" tabindex="0" autocomplete="off" data-l10n-id="pdfjs-page-input" />
@@ -166,7 +178,7 @@
 
               <div id="toolbarViewerRight" class="toolbarHorizontalGroup">
                 <div id="editorModeButtons" class="toolbarHorizontalGroup" role="radiogroup">
-                  <!-- Native Signature tool: visible and enabled -->
+                  <!-- Signature tool visible & functional -->
                   <div id="editorSignature" class="toolbarButtonWithContainer">
                     <button id="editorSignatureButton" class="toolbarButton" type="button" tabindex="0" role="radio" aria-expanded="false" aria-haspopup="true" aria-controls="editorSignatureParamsToolbar" data-l10n-id="pdfjs-editor-signature-button">
                       <span data-l10n-id="pdfjs-editor-signature-button-label"></span>
@@ -180,7 +192,7 @@
                     </div>
                   </div>
 
-                  <!-- Keep FreeText for typed notes -->
+                  <!-- FreeText kept -->
                   <div id="editorFreeText" class="toolbarButtonWithContainer">
                     <button id="editorFreeTextButton" class="toolbarButton" type="button" tabindex="0" role="radio" aria-expanded="false" aria-haspopup="true" aria-controls="editorFreeTextParamsToolbar" data-l10n-id="pdfjs-editor-free-text-button">
                       <span data-l10n-id="pdfjs-editor-free-text-button-label"></span>
@@ -199,7 +211,7 @@
                     </div>
                   </div>
 
-                  <!-- Ink & Highlight exist in DOM but are hidden via overrides -->
+                  <!-- Ink & Highlight exist but are hidden via CSS -->
                   <div id="editorInk" class="toolbarButtonWithContainer">
                     <button id="editorInkButton" class="toolbarButton" type="button" tabindex="0" role="radio" aria-expanded="false" aria-haspopup="true" aria-controls="editorInkParamsToolbar" data-l10n-id="pdfjs-editor-ink-button">
                       <span data-l10n-id="pdfjs-editor-ink-button-label"></span>
@@ -214,19 +226,110 @@
 
                 <div id="editorModeSeparator" class="verticalToolbarSeparator"></div>
 
-                <!-- Always-visible Open/Save -->
-                <div class="toolbarHorizontalGroup">
-                  <button id="openFile" class="toolbarButton" type="button" tabindex="0" data-l10n-id="pdfjs-open-file-button">
-                    <span data-l10n-id="pdfjs-open-file-button-label"></span>
+                <!-- Stock placement: Print + Download on the right -->
+                <div class="toolbarHorizontalGroup hiddenMediumView">
+                  <button id="printButton" class="toolbarButton" type="button" tabindex="0" data-l10n-id="pdfjs-print-button">
+                    <span data-l10n-id="pdfjs-print-button-label"></span>
                   </button>
                   <button id="downloadButton" class="toolbarButton" type="button" tabindex="0" data-l10n-id="pdfjs-save-button">
                     <span data-l10n-id="pdfjs-save-button-label"></span>
                   </button>
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
+
+                <div class="verticalToolbarSeparator hiddenMediumView"></div>
+
+                <!-- Secondary menu toggle (tools, including Open File) -->
+                <div id="secondaryToolbarToggle" class="toolbarButtonWithContainer">
+                  <button id="secondaryToolbarToggleButton" class="toolbarButton" type="button" tabindex="0" data-l10n-id="pdfjs-tools-button" aria-expanded="false" aria-haspopup="true" aria-controls="secondaryToolbar">
+                    <span data-l10n-id="pdfjs-tools-button-label"></span>
+                  </button>
+                  <div id="secondaryToolbar" class="hidden doorHangerRight menu">
+                    <div id="secondaryToolbarButtonContainer" class="menuContainer">
+                      <!-- Open File lives here in stock viewer -->
+                      <button id="secondaryOpenFile" class="toolbarButton labeled" type="button" tabindex="0" data-l10n-id="pdfjs-open-file-button">
+                        <span data-l10n-id="pdfjs-open-file-button-label"></span>
+                      </button>
+
+                      <div class="visibleMediumView">
+                        <button id="secondaryPrint" class="toolbarButton labeled" type="button" tabindex="0" data-l10n-id="pdfjs-print-button">
+                          <span data-l10n-id="pdfjs-print-button-label"></span>
+                        </button>
+                        <button id="secondaryDownload" class="toolbarButton labeled" type="button" tabindex="0" data-l10n-id="pdfjs-save-button">
+                          <span data-l10n-id="pdfjs-save-button-label"></span>
+                        </button>
+                      </div>
+
+                      <div class="horizontalToolbarSeparator"></div>
+
+                      <button id="presentationMode" class="toolbarButton labeled" type="button" tabindex="0" data-l10n-id="pdfjs-presentation-mode-button">
+                        <span data-l10n-id="pdfjs-presentation-mode-button-label"></span>
+                      </button>
+
+                      <a href="#" id="viewBookmark" class="toolbarButton labeled" tabindex="0" data-l10n-id="pdfjs-bookmark-button">
+                        <span data-l10n-id="pdfjs-bookmark-button-label"></span>
+                      </a>
+
+                      <div id="viewBookmarkSeparator" class="horizontalToolbarSeparator"></div>
+
+                      <button id="firstPage" class="toolbarButton labeled" type="button" tabindex="0" data-l10n-id="pdfjs-first-page-button">
+                        <span data-l10n-id="pdfjs-first-page-button-label"></span>
+                      </button>
+                      <button id="lastPage" class="toolbarButton labeled" type="button" tabindex="0" data-l10n-id="pdfjs-last-page-button">
+                        <span data-l10n-id="pdfjs-last-page-button-label"></span>
+                      </button>
+
+                      <div class="horizontalToolbarSeparator"></div>
+
+                      <button id="pageRotateCw" class="toolbarButton labeled" type="button" tabindex="0" data-l10n-id="pdfjs-page-rotate-cw-button">
+                        <span data-l10n-id="pdfjs-page-rotate-cw-button-label"></span>
+                      </button>
+                      <button id="pageRotateCcw" class="toolbarButton labeled" type="button" tabindex="0" data-l10n-id="pdfjs-page-rotate-ccw-button">
+                        <span data-l10n-id="pdfjs-page-rotate-ccw-button-label"></span>
+                      </button>
+
+                      <div class="horizontalToolbarSeparator"></div>
+
+                      <!-- Scroll/spread groups are present but hidden via CSS above -->
+                      <div id="scrollModeButtons" role="radiogroup">
+                        <button id="scrollPage" class="toolbarButton labeled toggled" type="button" tabindex="0" role="radio" data-l10n-id="pdfjs-tools-scroll-page-button" aria-checked="true" aria-controls="viewerContainer">
+                          <span data-l10n-id="pdfjs-tools-scroll-page-button-label"></span>
+                        </button>
+                        <button id="scrollVertical" class="toolbarButton labeled" type="button" tabindex="0" role="radio" data-l10n-id="pdfjs-tools-scroll-vertical-button" aria-checked="false" aria-controls="viewerContainer">
+                          <span data-l10n-id="pdfjs-tools-scroll-vertical-button-label"></span>
+                        </button>
+                        <button id="scrollHorizontal" class="toolbarButton labeled" type="button" tabindex="0" role="radio" data-l10n-id="pdfjs-tools-scroll-horizontal-button" aria-checked="false" aria-controls="viewerContainer">
+                          <span data-l10n-id="pdfjs-tools-scroll-horizontal-button-label"></span>
+                        </button>
+                        <button id="scrollWrapped" class="toolbarButton labeled" type="button" tabindex="0" role="radio" data-l10n-id="pdfjs-tools-scroll-wrapped-button" aria-checked="false" aria-controls="viewerContainer">
+                          <span data-l10n-id="pdfjs-tools-scroll-wrapped-button-label"></span>
+                        </button>
+                      </div>
+
+                      <div id="spreadModeButtons" role="radiogroup">
+                        <button id="spreadNone" class="toolbarButton labeled toggled" type="button" tabindex="0" role="radio" data-l10n-id="pdfjs-tools-spread-none-button" aria-checked="true" aria-controls="viewerContainer">
+                          <span data-l10n-id="pdfjs-tools-spread-none-button-label"></span>
+                        </button>
+                        <button id="spreadOdd" class="toolbarButton labeled" type="button" tabindex="0" role="radio" data-l10n-id="pdfjs-tools-spread-odd-button" aria-checked="false" aria-controls="viewerContainer">
+                          <span data-l10n-id="pdfjs-tools-spread-odd-button-label"></span>
+                        </button>
+                        <button id="spreadEven" class="toolbarButton labeled" type="button" tabindex="0" role="radio" data-l10n-id="pdfjs-tools-spread-even-button" aria-checked="false" aria-controls="viewerContainer">
+                          <span data-l10n-id="pdfjs-tools-spread-even-button-label"></span>
+                        </button>
+                      </div>
+
+                      <div class="horizontalToolbarSeparator"></div>
+
+                      <!-- File properties is present in DOM but hidden via CSS -->
+                      <button id="documentProperties" class="toolbarButton labeled" type="button" tabindex="0" data-l10n-id="pdfjs-document-properties-button" aria-controls="documentPropertiesDialog">
+                        <span data-l10n-id="pdfjs-document-properties-button-label"></span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div> <!-- toolbarViewerRight -->
+            </div> <!-- toolbarViewer -->
+          </div> <!-- toolbarContainer -->
+        </div> <!-- toolbar -->
 
         <!-- Viewer -->
         <div id="viewerContainer">
@@ -254,21 +357,36 @@
       <div id="printContainer"></div>
     </div>
 
-    <!-- Minimal JS to ensure signature UI is accessible -->
+    <!-- Minimal glue to ensure signature dialog opens even if upstream wiring is blocked -->
     <script type="module">
-      // Ensure signature button is enabled and not hidden.
-      const sig = document.getElementById('editorSignature');
-      const sigBtn = document.getElementById('editorSignatureButton');
-      sig?.removeAttribute('hidden');
-      sigBtn?.removeAttribute('disabled');
+      const app = window.PDFViewerApplication || {};
+      const eventBus = app.eventBus || null;
 
-      // Toggle the doorhanger on main button click (PDF.js also wires this).
+      function ensureSignatureEnabled() {
+        // Make sure the signature button isn't disabled/hidden
+        const sigContainer = document.getElementById('editorSignature');
+        const sigBtn = document.getElementById('editorSignatureButton');
+        sigContainer?.removeAttribute('hidden');
+        sigBtn?.removeAttribute('disabled');
+      }
+
+      ensureSignatureEnabled();
+
+      // When user taps "Add signature", prefer the native event; fallback to internal API if exposed.
       document.addEventListener('click', (e) => {
         const t = e.target;
         if (!(t instanceof HTMLElement)) return;
         if (t.id === 'editorSignatureButton') {
-          const dh = document.getElementById('editorSignatureParamsToolbar');
-          dh?.classList.toggle('hidden');
+          // Let PDF.js open the doorhanger; no-op here.
+          return;
+        }
+        if (t.id === 'editorSignatureAddSignature') {
+          // Primary path: dispatch the standard event PDF.js listens for
+          eventBus?.dispatch?.('addsignature');
+          // Fallback for older/newer builds that expose a UI manager API
+          try {
+            app._annotationEditorUIManager?.addSignature?.();
+          } catch {}
         }
       });
     </script>
