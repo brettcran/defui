@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <!--
 Copyright 2012 Mozilla Foundation
 
@@ -765,8 +765,59 @@ See https://github.com/adobe-type-tools/cmap-resources
     </div> <!-- outerContainer -->
     <div id="printContainer"></div>
   <script type="module">
-/* TurboSign: make Signature usable; reliably open the Add Signature pad */
+/* TurboSign: reliably open the built-in Add Signature dialog on all browsers */
+
 (() => {
+  // ---- Minimal <dialog> polyfill (only if needed) ----
+  const needsDialogPolyfill = !("HTMLDialogElement" in window) ||
+                              !("showModal" in HTMLDialogElement.prototype);
+
+  if (needsDialogPolyfill) {
+    const STYLE_ID = "ts-dialog-polyfill-style";
+    if (!document.getElementById(STYLE_ID)) {
+      const s = document.createElement("style");
+      s.id = STYLE_ID;
+      s.textContent = `
+      dialog[open]{display:block;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+        background:#fff;color:#000;max-width:95vw;max-height:90vh;border:0;border-radius:8px;
+        box-shadow:0 12px 40px rgba(0,0,0,.35);padding:0;z-index:100001}
+      .ts-dialog-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100000}
+      `;
+      document.head.appendChild(s);
+    }
+    const ensureBackdrop = () => {
+      let b = document.querySelector(".ts-dialog-backdrop");
+      if (!b) {
+        b = document.createElement("div");
+        b.className = "ts-dialog-backdrop";
+        b.addEventListener("click", () => {
+          document.querySelectorAll("dialog[open]").forEach(d => d.close && d.close());
+        });
+        document.body.appendChild(b);
+      }
+      return b;
+    };
+    HTMLDialogElement.prototype.showModal ??= function () {
+      this.setAttribute("open", "");
+      ensureBackdrop().style.display = "block";
+      // Basic focus
+      (this.querySelector("[tabindex],button,input,textarea,select") || this).focus?.();
+    };
+    HTMLDialogElement.prototype.close ??= function () {
+      this.removeAttribute("open");
+      const b = document.querySelector(".ts-dialog-backdrop");
+      if (b) b.style.display = "none";
+    };
+    // Esc to close
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        const top = document.querySelector("dialog[open]");
+        if (top) { e.preventDefault(); top.close(); }
+      }
+    });
+  }
+
+  // ---- PDF.js integration ----
   const wait = (cond, tries = 200, ms = 50) =>
     new Promise((resolve, reject) => {
       (function tick(n){
@@ -776,55 +827,45 @@ See https://github.com/adobe-type-tools/cmap-resources
       })(tries);
     });
 
-  (async function init() {
-    // Wait for viewer boot
-    await wait(() => window.PDFViewerApplication?.eventBus);
+  const openAddSignature = async () => {
+    await wait(() => window.PDFViewerApplication?.overlayManager && document.getElementById("addSignatureDialog"));
     const App = window.PDFViewerApplication;
-    const bus = App.eventBus;
-    const Opt = window.PDFViewerApplicationOptions;
+    const dlg = document.getElementById("addSignatureDialog");
 
-    // Ensure the editor features and buttons are enabled/visible after a doc loads
-    const enableEditors = () => {
-      try { Opt?.set?.("enableSignatureEditor", true); } catch {}
-      ["editorFreeTextButton","editorInkButton","editorSignatureButton"].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.disabled = false;
-      });
-      const sigBlock = document.getElementById("editorSignature");
-      if (sigBlock) sigBlock.hidden = false;
+    // Prefer PDF.js overlay manager if available (handles focus/backdrop)
+    if (App?.overlayManager?.open) {
+      try { await App.overlayManager.open(dlg); return; } catch (_) {}
+    }
+    // Fallback: native/ polyfilled dialog
+    if (dlg?.showModal) dlg.showModal();
+  };
 
-      // Hook the Signature button to open the door-hanger and then click "Add Signature"
-      const sigBtn = document.getElementById("editorSignatureButton");
-      if (!sigBtn || sigBtn.__tsHooked) return;
+  const enableSignature = () => {
+    // Make sure the signature UI is visible & enabled
+    const sigBlock = document.getElementById("editorSignature");
+    const sigBtn   = document.getElementById("editorSignatureButton");
+    if (sigBlock) sigBlock.hidden = false;
+    if (sigBtn)   sigBtn.disabled = false;
+
+    // One-time hook: click Signature → open Add Signature modal
+    if (sigBtn && !sigBtn.__tsHooked) {
       sigBtn.__tsHooked = true;
-
-      sigBtn.addEventListener("click", async () => {
-        try {
-          // Wait until the params toolbar exists and is not hidden
-          await wait(() => {
-            const panel = document.getElementById("editorSignatureParamsToolbar");
-            return panel && !panel.classList.contains("hidden");
-          }, 100, 50);
-
-          const addBtn = document.getElementById("editorSignatureAddSignature");
-          if (addBtn) {
-            // Small microtask delay lets layout/aria settle on some builds
-            setTimeout(() => addBtn.click(), 0);
-          }
-        } catch (e) {
-          console.warn("Signature params toolbar didn’t open in time:", e);
-        }
+      sigBtn.addEventListener("click", () => {
+        // Door-hanger sometimes appears first; we just open the modal directly.
+        setTimeout(openAddSignature, 0);
       }, { passive: true });
-    };
+    }
+  };
 
-    // Run on init + whenever a document finishes loading
-    bus.on("initialized", enableEditors);
-    bus.on("documentloaded", enableEditors);
-
-    // If we’re already past those events, try now
-    try { enableEditors(); } catch {}
+  (async function boot() {
+    await wait(() => window.PDFViewerApplication?.eventBus);
+    const bus = window.PDFViewerApplication.eventBus;
+    bus.on("initialized", enableSignature);
+    bus.on("documentloaded", enableSignature);
+    // If already ready, run now
+    try { enableSignature(); } catch {}
   })();
 })();
-</script>
+</script>>
   </body>
 </html>
