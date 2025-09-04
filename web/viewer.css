@@ -1,4 +1,4 @@
-./* Copyright 2014 Mozilla Foundation
+/* Copyright 2014 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -6763,20 +6763,34 @@ dialog :link{
   #scaleSelectContainer{
     display:none;
   }
-  /* Ensure signature dialog is fully interactive */
-#addSignatureDialog[open],
-#addSignatureDialog {
-  pointer-events: auto !important;
-  touch-action: auto !important;
+  /* Prevent background scroll when any dialog is open */
+html.ts-modal-open, body.ts-modal-open,
+html.ts-modal-open #outerContainer,
+html.ts-modal-open #mainContainer,
+html.ts-modal-open #viewerContainer {
+  overflow: hidden !important;
+  touch-action: none !important; /* stop page gestures */
 }
 
+/* Make sure the signature dialog receives all input */
+#addSignatureDialog[open] {
+  pointer-events: auto !important;
+  touch-action: none !important;       /* allow custom drawing; no browser gesture */
+  -webkit-overflow-scrolling: auto !important;
+}
+
+/* Inside the modal, allow interaction on inputs/buttons/canvas/SVG */
 #addSignatureDialog input,
 #addSignatureDialog textarea,
 #addSignatureDialog button,
 #addSignatureDialog svg,
 #addSignatureDialog canvas {
   pointer-events: auto !important;
-  touch-action: auto !important;
+  touch-action: none !important;       /* drawing without scroll/pinch */
   -webkit-user-select: auto !important;
   user-select: auto !important;
 }
+
+/* Ensure backdrop doesn’t steal taps; dialog sits on top */
+.ts-dialog-backdrop { z-index: 99999 !important; }
+dialog[open] { z-index: 100001 !important; }
