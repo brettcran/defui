@@ -1,38 +1,44 @@
-/* TurboSign: Mobile "Fill & Sign" for the STOCK PDF.js viewer.
-   - Hides: sidebar, search, highlight, properties, print, open file, spreads, non-vertical scroll, image/stamp.
-   - Keeps: page nav, zoom, FreeText, Ink, Signature.
-   - Enlarges touch targets & scales masked icons.
-   - Desktop is untouched. Upgrade-safe: loaded AFTER viewer.css.
+/* TurboSign: Mobile "Fill & Sign" for stock PDF.js
+   - Open File + Save/Download stay in the MAIN toolbar
+   - Secondary menu removed entirely
+   - Sidebar/search/properties/print/presentation/spreads/horizontal+wrapped scroll/highlight/image-stamp hidden
+   - Larger tap targets + scaled icons
+   - NO horizontal hairline, NO middle divider (no separators), NO gaps between buttons
+   - Buttons visibly highlight when selected/pressed/focused
 */
 @media (max-width: 768px) {
-  /* Hide sidebar & its toggle */
+  /* ===== Remove secondary menu entirely ===== */
+  #secondaryToolbarToggle,
+  #secondaryToolbar {
+    display: none !important;
+  }
+
+  /* ===== Hide sidebar & its toggle ===== */
   #sidebarContainer,
   #sidebarToggleButton {
     display: none !important;
   }
 
-  /* Hide search UI */
+  /* ===== Hide search UI ===== */
   #viewFindButton,
   #findbar {
     display: none !important;
   }
 
-  /* Remove Properties, Print (main + secondary), Open file, Presentation */
+  /* ===== Hide properties, print, presentation ===== */
   #documentProperties,
   #printButton,
-  #secondaryPrint,
-  #secondaryOpenFile,
   #presentationMode {
     display: none !important;
   }
 
-  /* Remove spreads & non-vertical scroll controls in the secondary menu */
+  /* ===== Hide spreads & non-vertical scroll controls ===== */
   #spreadOdd, #spreadEven,
   #scrollHorizontal, #scrollWrapped, #scrollPage {
     display: none !important;
   }
 
-  /* Remove highlight and image/stamp editors (leave FreeText/Ink/Signature) */
+  /* ===== Hide highlight and image/stamp editors (keep FreeText/Ink/Signature) ===== */
   #editorHighlightButton,
   #editorHighlightParamsToolbar,
   #editorStampButton,
@@ -40,26 +46,59 @@
     display: none !important;
   }
 
-  /* Secondary toolbar trigger (we’re stripping its contents anyway) */
-  /* If you want the “…” button gone entirely, uncomment the line below */
-  /* #secondaryToolbarToggle { display: none !important; } */
+  /* ===== Keep Open File and Save/Download in main toolbar ===== */
+  #openFile,
+  #download {
+    display: inline-flex !important;
+  }
 
-  /* Enlarge toolbar row and button hit targets */
-  #toolbarContainer { height: 72px !important; }
+  /* ===== Main toolbar sizing & cleanup ===== */
+  #toolbarContainer {
+    height: 72px !important;
+    border-bottom: 0 !important;   /* remove the horizontal hairline */
+    box-shadow: none !important;
+  }
+
+  /* Remove any borders/shadows on toolbars/findbar */
+  .toolbar, #findbar {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* ===== No gaps between buttons ===== */
+  #toolbarViewerLeft,
+  #toolbarViewerMiddle,
+  #toolbarViewerRight {
+    display: flex !important;
+    gap: 0 !important;
+  }
+
+  /* Uniform button sizing; rounded for clearer pressed state */
   #toolbarViewerLeft .toolbarButton,
   #toolbarViewerMiddle .toolbarButton,
-  #toolbarViewerRight .toolbarButton,
-  #secondaryToolbarToggle,
+  #toolbarViewerRight  .toolbarButton,
   .splitToolbarButton > .toolbarButton,
-  .secondaryToolbarButton,
   .overlayButton {
+    margin: 0 !important;
+    border: 0 !important;
     min-width: 56px !important;
     height: 56px !important;
     padding: 8px !important;
     line-height: 1 !important;
+    border-radius: 8px !important;
+    background: transparent !important; /* base transparent; states below */
   }
 
-  /* Scale the sprite-mask icons used by PDF.js so they aren’t tiny */
+  /* ===== REMOVE ALL separators (no middle divider) ===== */
+  .splitToolbarButtonSeparator,
+  .horizontalToolbarSeparator {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Scale the masked sprite icons so they aren’t tiny in bigger buttons */
   .toolbarButton::before,
   .secondaryToolbarButton::before,
   .overlayButton::before {
@@ -71,15 +110,29 @@
     margin: 0 auto !important;
   }
 
-  /* Inputs large enough to stop iOS focus-zoom */
+  /* Inputs big enough to stop iOS focus-zoom */
   #pageNumber, #findInput, .toolbarField {
     font-size: 18px !important;
     height: 44px !important;
     padding: 6px 10px !important;
   }
 
-  /* Secondary toolbar spacing (if opened) */
-  #secondaryToolbar { padding: 10px !important; }
-  #secondaryToolbar .toolbarButtonRow > .secondaryToolbarButton { min-height: 48px !important; }
-  #secondaryToolbar .horizontalToolbarSeparator { height: 24px !important; margin: 6px 0 !important; }
+  /* ===== Visible states ===== */
+  /* Toggled tool (e.g., FreeText/Ink/Signature) */
+  .toolbarButton.toggled,
+  .toolbarButton[aria-pressed="true"] {
+    background: rgba(38,132,255,0.18) !important;
+    box-shadow: inset 0 0 0 2px rgba(38,132,255,0.9) !important;
+  }
+
+  /* Pressed/active feedback */
+  .toolbarButton:active {
+    background: rgba(38,132,255,0.26) !important;
+  }
+
+  /* Keyboard/accessibility focus ring */
+  .toolbarButton:focus-visible {
+    outline: 3px solid rgba(38,132,255,0.95) !important;
+    outline-offset: 2px !important;
+  }
 }
