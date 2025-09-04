@@ -1,0 +1,54 @@
+/* TurboSign mobile sizing for the STOCK PDF.js UI
+   - Bigger tap targets for all toolbar buttons (main + split + secondary)
+   - Scale the mask/sprite icons so they’re not tiny inside bigger buttons
+   - Inputs >=16px font to stop iOS focus-zoom
+   Upgrade-safe: loaded after viewer.css; no JS; no build changes.
+*/
+@media (max-width: 768px) {
+  /* Taller toolbar row */
+  #toolbarContainer { height: 72px !important; }
+
+  /* Main/secondary buttons (all stock selectors) */
+  #toolbarViewerLeft .toolbarButton,
+  #toolbarViewerMiddle .toolbarButton,
+  #toolbarViewerRight .toolbarButton,
+  #secondaryToolbarToggle,
+  .splitToolbarButton > .toolbarButton,
+  .overlayButton,
+  .secondaryToolbarButton {
+    min-width: 56px !important;
+    height: 56px !important;
+    padding: 8px !important;
+    line-height: 1 !important;
+  }
+
+  /* Scale the sprite-mask icons used by PDF.js toolbar */
+  .toolbarButton::before,
+  .secondaryToolbarButton::before,
+  .overlayButton::before {
+    width: 28px !important;
+    height: 28px !important;
+    background-size: 28px 28px !important;
+    -webkit-mask-size: 28px 28px !important;
+            mask-size: 28px 28px !important;
+    margin: 0 auto !important;
+  }
+
+  /* Split-button separator sized for taller row */
+  .splitToolbarButtonSeparator {
+    height: 40px !important;
+    margin: 0 6px !important;
+  }
+
+  /* Inputs large enough to stop iOS focus-zoom */
+  #pageNumber, #findInput, .toolbarField {
+    font-size: 18px !important;
+    height: 44px !important;
+    padding: 6px 10px !important;
+  }
+
+  /* Secondary toolbar spacing */
+  #secondaryToolbar { padding: 10px !important; }
+  #secondaryToolbar .toolbarButtonRow > .secondaryToolbarButton { min-height: 48px !important; }
+  #secondaryToolbar .horizontalToolbarSeparator { height: 24px !important; margin: 6px 0 !important; }
+}
