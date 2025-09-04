@@ -6913,3 +6913,21 @@ dialog :link{
 }
 /* ===== End TurboSign MOBILE: Editor panels fix & auto-hide ===== */
 
+
+
+/* TurboSign overrides */
+#editorInk, #editorHighlight { display: none !important; }
+body.signature-modal-open { overflow: hidden; touch-action: none; }
+#signatureModalOverlay.ts-hidden { display: none; }
+#signatureModalOverlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center; z-index: 10000;
+}
+#signatureModal {
+  width: min(96vw, 520px); max-height: 90vh; overflow: auto;
+}
+#signatureCanvas {
+  width: 100%; height: 220px; background: #fff; border: 1px solid #d0d0d7; border-radius: 6px; touch-action: none;
+}
+.ts-modal-header, .ts-modal-footer { position: sticky; top: 0; bottom: 0; background: var(--dialog-bg-color); }
+.ts-row { display: flex; gap: 8px; margin-top: 8px; }

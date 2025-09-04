@@ -34,7 +34,33 @@ See https://github.com/adobe-type-tools/cmap-resources
     <link rel="stylesheet" href="viewer.css">
 
   <script src="viewer.mjs" type="module"></script>
-  </head>
+  
+  <!-- TurboSign overrides -->
+  <style>
+    #editorInk, #editorHighlight { display: none !important; }
+    body.signature-modal-open { overflow: hidden; touch-action: none; }
+    #signatureModalOverlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      display: none; align-items: center; justify-content: center; z-index: 10000;
+    }
+    #signatureModalOverlay.active { display: flex; }
+    #signatureModal {
+      background: var(--dialog-bg-color, #fff); color: var(--text-primary-color, #111);
+      width: min(96vw, 520px); max-height: 90vh; overflow: auto;
+      border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    }
+    #signatureModal header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom: 1px solid var(--separator-color, #e5e5ea); }
+    #signatureModal header h2 { margin:0; font-size:16px; }
+    #signatureModal .tabs { display:flex; gap:8px; padding:8px 12px; border-bottom: 1px solid var(--separator-color, #e5e5ea); }
+    #signatureModal .tabs button { flex:1; height:36px; border-radius:6px; border:1px solid #d0d0d7; background:#f7f7fb; }
+    #signatureModal .tabs button.active { border-color:#0060df; outline:2px solid #80ebff; background:#fff; }
+    #signatureModal .panel { padding:12px; }
+    #signatureCanvas { width:100%; height:220px; touch-action: none; background:#fff; border:1px solid #d0d0d7; border-radius:6px; }
+    #signatureModal footer { display:flex; gap:12px; justify-content:flex-end; padding:12px 16px; border-top: 1px solid var(--separator-color, #e5e5ea); position: sticky; bottom: 0; background: inherit; }
+    .visuallyHidden { position:absolute !important; clip: rect(1px,1px,1px,1px); width:1px; height:1px; overflow:hidden; white-space:nowrap; }
+  </style>
+
+</head>
 
   <body tabindex="0">
     <div id="outerContainer">
@@ -184,8 +210,8 @@ See https://github.com/adobe-type-tools/cmap-resources
               </div>
               <div id="toolbarViewerRight" class="toolbarHorizontalGroup">
                 <div id="editorModeButtons" class="toolbarHorizontalGroup" role="radiogroup">
-                  <div id="editorSignature" class="toolbarButtonWithContainer" hidden="true">
-                    <button id="editorSignatureButton" class="toolbarButton" type="button" tabindex="0" disabled="disabled" role="radio" aria-expanded="false" aria-haspopup="true" aria-controls="editorSignatureParamsToolbar" data-l10n-id="pdfjs-editor-signature-button">
+                  <div id="editorSignature" class="toolbarButtonWithContainer">
+                    <button id="editorSignatureButton" class="toolbarButton" type="button" tabindex="0" role="radio" aria-expanded="false" aria-haspopup="true" aria-controls="editorSignatureParamsToolbar" data-l10n-id="pdfjs-editor-signature-button">
                       <span data-l10n-id="pdfjs-editor-signature-button-label"></span>
                     </button>
                     <div class="editorParamsToolbar hidden doorHangerRight menu" id="editorSignatureParamsToolbar">
@@ -764,5 +790,211 @@ See https://github.com/adobe-type-tools/cmap-resources
 
     </div> <!-- outerContainer -->
     <div id="printContainer"></div>
-  </body>
+  
+  <!-- TurboSign Signature Modal -->
+  <div id="signatureModalOverlay" role="dialog" aria-modal="true" aria-labelledby="signatureModalTitle">
+    <div id="signatureModal" class="dialog">
+      <header>
+        <h2 id="signatureModalTitle">Add Signature</h2>
+        <button id="signatureCloseBtn" class="closeButton" aria-label="Close signature dialog"></button>
+      </header>
+      <div class="tabs" role="tablist">
+        <button id="tabType" role="tab" aria-selected="true" class="active">Type</button>
+        <button id="tabDraw" role="tab" aria-selected="false">Draw</button>
+        <button id="tabImage" role="tab" aria-selected="false">Image</button>
+      </div>
+      <div id="panelType" class="panel" role="tabpanel" aria-labelledby="tabType">
+        <label for="typedSignature" class="editorParamsLabel">Your name</label>
+        <input id="typedSignature" type="text" class="toolbarField" placeholder="Type your name">
+      </div>
+      <div id="panelDraw" class="panel visuallyHidden" role="tabpanel" aria-labelledby="tabDraw">
+        <canvas id="signatureCanvas"></canvas>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button id="sigClear" class="secondaryButton"><span>Clear</span></button>
+        </div>
+      </div>
+      <div id="panelImage" class="panel visuallyHidden" role="tabpanel" aria-labelledby="tabImage">
+        <input id="sigFile" type="file" accept="image/*">
+      </div>
+      <footer>
+        <button id="sigCancel" class="secondaryButton"><span>Cancel</span></button>
+        <button id="sigApply" class="primaryButton"><span>Apply</span></button>
+      </footer>
+    </div>
+  </div>
+
+
+  <script type="module">
+    // TurboSign Signature Controller
+    const $ = (sel) => document.querySelector(sel);
+    const overlay = $('#signatureModalOverlay');
+    const body = document.body;
+
+    const openSig = () => {
+      overlay.classList.add('active');
+      body.classList.add('signature-modal-open');
+      // Resize canvas to device pixel ratio
+      const canvas = $('#signatureCanvas');
+      if (canvas) {
+        const dpr = Math.max(1, window.devicePixelRatio || 1);
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#111';
+      }
+    };
+    const closeSig = () => {
+      overlay.classList.remove('active');
+      body.classList.remove('signature-modal-open');
+    };
+
+    // Wire Signature button
+    document.addEventListener('click', (e) => {
+      const t = e.target;
+      if (t && (t.id === 'editorSignatureAddSignature' || t.id === 'editorSignatureButton')) {
+        e.preventDefault();
+        openSig();
+      }
+    });
+
+    $('#signatureCloseBtn')?.addEventListener('click', closeSig);
+    $('#sigCancel')?.addEventListener('click', closeSig);
+    overlay?.addEventListener('click', (e) => { if (e.target === overlay) closeSig(); });
+
+    // Tabs
+    const tabs = [
+      {tab: '#tabType', panel: '#panelType'},
+      {tab: '#tabDraw', panel: '#panelDraw'},
+      {tab: '#tabImage', panel: '#panelImage'}
+    ];
+    function activateTab(id) {
+      tabs.forEach(({tab, panel}) => {
+        const isActive = tab === id;
+        $(tab).classList.toggle('active', isActive);
+        $(tab).setAttribute('aria-selected', isActive ? 'true' : 'false');
+        $(panel).classList.toggle('visuallyHidden', !isActive);
+      });
+      if (id === '#tabDraw') {
+        // ensure canvas is sized
+        const canvas = $('#signatureCanvas');
+        if (canvas && overlay.classList.contains('active')) {
+          const evt = new Event('resize');
+          window.dispatchEvent(evt);
+        }
+      }
+    }
+    tabs.forEach(({tab}) => { $(tab)?.addEventListener('click', () => activateTab(tab)); });
+
+    // Canvas drawing with pointer events (iOS compatible)
+    (function(){
+      const canvas = $('#signatureCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let drawing = false, lastX = 0, lastY = 0;
+
+      const getXY = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left);
+        const y = (e.clientY - rect.top);
+        return {x, y};
+      };
+
+      const start = (e) => { e.preventDefault(); drawing = true; const {x,y}=getXY(e); lastX=x; lastY=y; };
+      const move = (e) => {
+        if (!drawing) return;
+        e.preventDefault();
+        const {x,y} = getXY(e);
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        lastX = x; lastY = y;
+      };
+      const end = (e) => { drawing = false; };
+
+      canvas.addEventListener('pointerdown', start, {passive:false});
+      canvas.addEventListener('pointermove', move, {passive:false});
+      canvas.addEventListener('pointerup', end, {passive:false});
+      canvas.addEventListener('pointercancel', end, {passive:false});
+      canvas.addEventListener('pointerleave', end, {passive:false});
+      // Prevent scrolling while drawing
+      canvas.addEventListener('touchmove', (e)=> e.preventDefault(), {passive:false});
+
+      $('#sigClear')?.addEventListener('click', () => {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+      });
+    })();
+
+    // Apply signature -> activate PDF.js signature editor mode and place image/text
+    $('#sigApply')?.addEventListener('click', async () => {
+      // Prefer draw; fallback to typed or image file
+      let blob = null;
+      const drawActive = $('#tabDraw')?.classList.contains('active');
+      const typeActive = $('#tabType')?.classList.contains('active');
+      const imgActive  = $('#tabImage')?.classList.contains('active');
+      try {
+        if (drawActive) {
+          const canvas = $('#signatureCanvas');
+          if (canvas) blob = await new Promise(r=>canvas.toBlob(r));
+        } else if (imgActive && $('#sigFile')?.files?.[0]) {
+          blob = $('#sigFile').files[0];
+        } else if (typeActive) {
+          const text = ($('#typedSignature')?.value || '').trim();
+          if (text) {
+            // Render typed as canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = 800; canvas.height = 220;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+            ctx.fillStyle = '#000'; ctx.font = '48px cursive';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 24, canvas.height/2);
+            blob = await new Promise(r=>canvas.toBlob(r));
+          }
+        }
+      } catch(e) { console.warn('Signature rendering failed', e); }
+      closeSig();
+      if (!blob) return;
+
+      // Feed to PDF.js editor stamp (image) as a placed signature
+      try {
+        const imgURL = URL.createObjectURL(blob);
+        // Prefer native signature editor if available
+        const sigBtn = document.getElementById('editorSignatureButton');
+        if (sigBtn) {
+          // Switch to stamp mode to place an image, which is robust across builds
+          const stampBtn = document.getElementById('editorStampButton');
+          if (stampBtn) stampBtn.click();
+          // Trigger hidden file input used by PDF.js stamp, if present
+          const addImg = document.getElementById('editorStampAddImage');
+          if (addImg) {
+            // monkey-patch a synthetic file input
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            const resp = await fetch(imgURL);
+            const buf = await resp.arrayBuffer();
+            const file = new File([buf], 'signature.png', {type:'image/png'});
+            const dt = new DataTransfer(); dt.items.add(file);
+            input.files = dt.files;
+            // Forward to PDF.js handler by dispatching a change event
+            input.addEventListener('change', ()=>{
+              // try to call original handler if available
+              addImg.dispatchEvent(new Event('click'));
+            });
+            input.dispatchEvent(new Event('change'));
+          }
+        }
+      } catch(e) {
+        console.warn('PDF.js integration fallback failed', e);
+      }
+    });
+  </script>
+
+</body>
 </html>
