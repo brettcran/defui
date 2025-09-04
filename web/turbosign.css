@@ -1,91 +1,55 @@
-/* TurboSign: Mobile Fill & Sign for stock PDF.js
-   - KEEP (force-show): Open File, Download/Save, Zoom Out/In, FreeText, Ink, Signature
-   - REMOVE: Highlight (tool + params), page navigator, secondary menu, sidebar, search,
-             properties, print, presentation, spreads, horizontal/wrapped scroll, image/stamp
-   - NO toolbar hairline, NO center divider, NO gaps; bigger tap targets + visible states
-*/
+/* TurboSign mobile/toolbar overrides for stock PDF.js (no upstream edits) */
+
+/* Remove all separators/lines & spacers everywhere */
+.verticalToolbarSeparator,
+.horizontalToolbarSeparator,
+.splitToolbarButtonSeparator,
+.toolbarButtonSpacer {
+  display: none !important;
+}
+
+/* Hide sidebar + toggle entirely (keep DOM so PDF.js stays happy) */
+#sidebarContainer, #sidebarToggleButton { display: none !important; }
+
+/* Hide find/search, page nav, scale dropdown label, print, highlight, stamp,
+   ellipsis/secondary tools and the entire secondary menu */
+#viewFindButton, #findbar,
+#previous, #next, #pageNumber, #numPages,
+#printButton,
+#editorHighlight, #editorHighlightButton, #editorHighlightParamsToolbar,
+#editorStamp, #editorStampButton, #editorStampParamsToolbar,
+#secondaryToolbarToggle, #secondaryToolbarToggleButton,
+#secondaryToolbar {
+  display: none !important;
+}
+
+/* Tight main toolbar with no gaps */
+#toolbarContainer { gap: 0 !important; }
+#toolbarViewer, #toolbarViewer > .toolbarHorizontalGroup,
+#editorModeButtons { gap: 0 !important; }
+
+/* Active tool emphasis (ink/text/signature) */
+.toolbarButton[aria-pressed="true"],
+.toolbarButton.toggled {
+  outline: 2px solid rgba(0,0,0,.5) !important;
+  outline-offset: -2px !important;
+  background: rgba(0,0,0,.08) !important;
+}
+
+/* Make buttons big & touchable on mobile */
 @media (max-width: 768px) {
-  /* ===== Remove secondary menu & sidebar ===== */
-  #secondaryToolbarToggle, #secondaryToolbar,
-  #sidebarContainer, #sidebarToggleButton { display: none !important; }
-
-  /* ===== Remove search, properties, print, presentation ===== */
-  #viewFindButton, #findbar,
-  #documentProperties, #printButton, #presentationMode { display: none !important; }
-
-  /* ===== Remove spreads & non-vertical scroll controls (belt & suspenders) ===== */
-  #spreadOdd, #spreadEven, #scrollHorizontal, #scrollWrapped, #scrollPage { display: none !important; }
-
-  /* ===== Remove IMAGE/STAMP editor ===== */
-  #editorStampButton, #editorStampParamsToolbar { display: none !important; }
-
-  /* ===== REMOVE HIGHLIGHT (tool + params) ===== */
-  #editorHighlight, #editorHighlightButton, #editorHighlightParamsToolbar { display: none !important; }
-
-  /* ===== REMOVE page navigator (Prev/Next + page number + labels) ===== */
-  #previous, #next, #pageNumber, #numPages, #numPagesLabel, #pageNumberLabel, #pageNumberLabel2 {
-    display: none !important;
-  }
-
-  /* ===== Force-show keepers even if viewer marks them hidden* ===== */
-  #openFile, #download, #zoomOut, #zoomIn,
-  #editorFreeText, #editorInk, #editorSignature,            /* older IDs */
-  #editorFreeTextButton, #editorInkButton, #editorSignatureButton {  /* newer IDs */
-    display: inline-flex !important;
-    visibility: visible !important;
-  }
-
-  /* ===== Main toolbar sizing & cleanup ===== */
-  #toolbarContainer {
-    height: 72px !important;
-    border-bottom: 0 !important;   /* kill horizontal hairline */
-    box-shadow: none !important;
-    background-clip: padding-box !important;
-  }
-  .toolbar, #findbar {
-    border: 0 !important;
-    box-shadow: none !important;
-    background: transparent !important;
-  }
-
-  /* ===== No gaps between buttons; keep everything in one row ===== */
-  #toolbarViewerLeft, #toolbarViewerMiddle, #toolbarViewerRight {
-    display: flex !important;
-    gap: 0 !important;
-  }
-
-  /* ===== Uniform button boxes; larger tap targets ===== */
+  #toolbarContainer { height: 72px !important; }
   #toolbarViewerLeft .toolbarButton,
   #toolbarViewerMiddle .toolbarButton,
   #toolbarViewerRight .toolbarButton,
-  .splitToolbarButton > .toolbarButton,
+  .secondaryToolbarButton,
   .overlayButton {
-    margin: 0 !important;
-    border: 0 !important;
     min-width: 56px !important;
     height: 56px !important;
     padding: 8px !important;
     line-height: 1 !important;
-    border-radius: 8px !important;
-    background: transparent !important;
-    box-shadow: none !important;
   }
-
-  /* ===== Nuke ALL split-group lines/borders (center divider gone) ===== */
-  .splitToolbarButton,
-  .splitToolbarButton > .toolbarButton {
-    border: none !important;
-    box-shadow: none !important;
-    background: transparent !important;
-  }
-  .splitToolbarButtonSeparator,
-  .horizontalToolbarSeparator {
-    display: none !important;
-    width: 0 !important; height: 0 !important; margin: 0 !important;
-    background: transparent !important;
-  }
-
-  /* ===== Icons scaled to match larger buttons ===== */
+  /* Scale mask/sprite icons */
   .toolbarButton::before,
   .secondaryToolbarButton::before,
   .overlayButton::before {
@@ -96,23 +60,15 @@
             mask-size: 28px 28px !important;
     margin: 0 auto !important;
   }
-
-  /* ===== Inputs sized to prevent iOS auto-zoom (for any remaining fields) ===== */
-  .toolbarField {
+  /* Inputs big enough to stop iOS focus zoom */
+  #scaleSelect, .toolbarField {
     font-size: 18px !important;
     height: 44px !important;
     padding: 6px 10px !important;
   }
-
-  /* ===== Visible states ===== */
-  .toolbarButton.toggled,
-  .toolbarButton[aria-pressed="true"] {
-    background: rgba(38,132,255,0.18) !important;
-    box-shadow: inset 0 0 0 2px rgba(38,132,255,0.9) !important;
-  }
-  .toolbarButton:active { background: rgba(38,132,255,0.26) !important; }
-  .toolbarButton:focus-visible {
-    outline: 3px solid rgba(38,132,255,0.95) !important;
-    outline-offset: 2px !important;
-  }
 }
+
+/* Keep only Text, Ink, Signature groups visible (others hidden above) */
+#editorModeSeparator { display: none !important; }
+
+/* Keep Save visible on the right; we’ll add Open by JS */
