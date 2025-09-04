@@ -6794,3 +6794,4 @@ html.ts-modal-open #viewerContainer {
 /* Ensure backdrop doesn’t steal taps; dialog sits on top */
 .ts-dialog-backdrop { z-index: 99999 !important; }
 dialog[open] { z-index: 100001 !important; }
+}
