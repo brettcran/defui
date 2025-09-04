@@ -6925,3 +6925,25 @@ dialog :link{
     font-size: 16px;
   }
 }
+/* === TurboSign Overrides (appended) === */
+/* Hide Ink & Highlight tools (keep DOM for PDF.js) */
+#editorInk, #editorHighlight { display: none !important; }
+/* Hide Zoom +/- buttons; keep the scale select */
+#zoomInButton, #zoomOutButton { display: none !important; }
+/* Hide scroll/spread options and Document Properties in the secondary menu */
+#scrollModeButtons, #spreadModeButtons, #documentProperties { display: none !important; }
+/* Maintain vertical scrolling; prevent bounce chaining */
+#viewerContainer { overscroll-behavior: contain; }
+/* Lock background scroll while any overlay/dialog is open */
+body:has(#overlayContainer:not(.hidden)) #viewerContainer {
+  overflow: hidden !important;
+  touch-action: none !important;
+}
+/* Touch-friendly targets on mobile */
+@media (pointer: coarse) {
+  .toolbarButton, .toolbarField, select {
+    min-height: 40px;
+    min-width: 40px;
+    font-size: 16px;
+  }
+}
