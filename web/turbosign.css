@@ -1,28 +1,65 @@
-/* TurboSign mobile sizing for the STOCK PDF.js UI
-   - Bigger tap targets for all toolbar buttons (main + split + secondary)
-   - Scale the mask/sprite icons so they’re not tiny inside bigger buttons
-   - Inputs >=16px font to stop iOS focus-zoom
-   Upgrade-safe: loaded after viewer.css; no JS; no build changes.
+/* TurboSign: Mobile "Fill & Sign" for the STOCK PDF.js viewer.
+   - Hides: sidebar, search, highlight, properties, print, open file, spreads, non-vertical scroll, image/stamp.
+   - Keeps: page nav, zoom, FreeText, Ink, Signature.
+   - Enlarges touch targets & scales masked icons.
+   - Desktop is untouched. Upgrade-safe: loaded AFTER viewer.css.
 */
 @media (max-width: 768px) {
-  /* Taller toolbar row */
-  #toolbarContainer { height: 72px !important; }
+  /* Hide sidebar & its toggle */
+  #sidebarContainer,
+  #sidebarToggleButton {
+    display: none !important;
+  }
 
-  /* Main/secondary buttons (all stock selectors) */
+  /* Hide search UI */
+  #viewFindButton,
+  #findbar {
+    display: none !important;
+  }
+
+  /* Remove Properties, Print (main + secondary), Open file, Presentation */
+  #documentProperties,
+  #printButton,
+  #secondaryPrint,
+  #secondaryOpenFile,
+  #presentationMode {
+    display: none !important;
+  }
+
+  /* Remove spreads & non-vertical scroll controls in the secondary menu */
+  #spreadOdd, #spreadEven,
+  #scrollHorizontal, #scrollWrapped, #scrollPage {
+    display: none !important;
+  }
+
+  /* Remove highlight and image/stamp editors (leave FreeText/Ink/Signature) */
+  #editorHighlightButton,
+  #editorHighlightParamsToolbar,
+  #editorStampButton,
+  #editorStampParamsToolbar {
+    display: none !important;
+  }
+
+  /* Secondary toolbar trigger (we’re stripping its contents anyway) */
+  /* If you want the “…” button gone entirely, uncomment the line below */
+  /* #secondaryToolbarToggle { display: none !important; } */
+
+  /* Enlarge toolbar row and button hit targets */
+  #toolbarContainer { height: 72px !important; }
   #toolbarViewerLeft .toolbarButton,
   #toolbarViewerMiddle .toolbarButton,
   #toolbarViewerRight .toolbarButton,
   #secondaryToolbarToggle,
   .splitToolbarButton > .toolbarButton,
-  .overlayButton,
-  .secondaryToolbarButton {
+  .secondaryToolbarButton,
+  .overlayButton {
     min-width: 56px !important;
     height: 56px !important;
     padding: 8px !important;
     line-height: 1 !important;
   }
 
-  /* Scale the sprite-mask icons used by PDF.js toolbar */
+  /* Scale the sprite-mask icons used by PDF.js so they aren’t tiny */
   .toolbarButton::before,
   .secondaryToolbarButton::before,
   .overlayButton::before {
@@ -34,12 +71,6 @@
     margin: 0 auto !important;
   }
 
-  /* Split-button separator sized for taller row */
-  .splitToolbarButtonSeparator {
-    height: 40px !important;
-    margin: 0 6px !important;
-  }
-
   /* Inputs large enough to stop iOS focus-zoom */
   #pageNumber, #findInput, .toolbarField {
     font-size: 18px !important;
@@ -47,7 +78,7 @@
     padding: 6px 10px !important;
   }
 
-  /* Secondary toolbar spacing */
+  /* Secondary toolbar spacing (if opened) */
   #secondaryToolbar { padding: 10px !important; }
   #secondaryToolbar .toolbarButtonRow > .secondaryToolbarButton { min-height: 48px !important; }
   #secondaryToolbar .horizontalToolbarSeparator { height: 24px !important; margin: 6px 0 !important; }
