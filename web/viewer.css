@@ -6912,4 +6912,16 @@ dialog :link{
   }
 }
 /* ===== End TurboSign MOBILE: Editor panels fix & auto-hide ===== */
-
+/* === TurboSign Overrides === */
+#editorInk, #editorHighlight { display: none !important; }        /* Hide Ink & Highlight */
+#zoomInButton, #zoomOutButton { display: none !important; }       /* Hide Zoom +/- */
+#scrollModeButtons, #spreadModeButtons { display: none !important; } /* Hide scroll/spread toggles */
+#documentProperties { display: none !important; }                 /* Hide Document Properties */
+#viewerContainer { overscroll-behavior: contain; }                /* Keep vertical scroll */
+@media (pointer: coarse) {
+  .toolbarButton, .toolbarField, select {
+    min-height: 40px;
+    min-width: 40px;
+    font-size: 16px;
+  }
+}
