@@ -24,13 +24,11 @@
     } catch {}
   }
 
-  // 2) Before init: make sure highlight/signature editors are allowed
+  // 2) Before init: allow Signature editor
   document.addEventListener('webviewerloaded', () => {
     const Opt = window.PDFViewerApplicationOptions;
     if (!Opt) return;
     try { Opt.set('enableSignatureEditor', true); } catch {}
-    // Highlight is part of the annotation editor set and is enabled by default in your build;
-    // no option flip needed unless your distro gated it.
   }, { once: true });
 
   // 3) After init: force vertical scroll + no spreads on mobile
