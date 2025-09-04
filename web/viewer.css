@@ -6771,24 +6771,48 @@ html.ts-modal-open #viewerContainer {
   overflow: hidden !important;
   touch-action: none !important; /* stop page gestures */
 }
+<script type="module">
+(() => {
+  const wait = (cond, tries = 200, ms = 50) =>
+    new Promise((res, rej) => {
+      (function tick(n){
+        try { if (cond()) return res(); } catch {}
+        if (n <= 0) return rej(new Error("timeout"));
+        setTimeout(() => tick(n-1), ms);
+      })(tries);
+    });
 
-/* Make sure the signature dialog receives all input */
-#addSignatureDialog[open] {
-  pointer-events: auto !important;
-  touch-action: none !important;       /* allow custom drawing; no browser gesture */
-  -webkit-overflow-scrolling: auto !important;
-}
+  const enableSignature = async () => {
+    await wait(() => window.PDFViewerApplication?.overlayManager);
+    const App = window.PDFViewerApplication;
+    const bus = App.eventBus;
 
-/* Inside the modal, allow interaction on inputs/buttons/canvas/SVG */
-#addSignatureDialog input,
-#addSignatureDialog textarea,
-#addSignatureDialog button,
-#addSignatureDialog svg,
-#addSignatureDialog canvas {
-  pointer-events: auto !important;
-  touch-action: none !important;       /* drawing without scroll/pinch */
-  -webkit-user-select: auto !important;
-  user-select: auto !important;
+    const sigBlock = document.getElementById("editorSignature");
+    const sigBtn   = document.getElementById("editorSignatureButton");
+    if (sigBlock) sigBlock.hidden = false;
+    if (sigBtn)   sigBtn.disabled = false;
+
+    if (sigBtn && !sigBtn.__tsHooked) {
+      sigBtn.__tsHooked = true;
+      sigBtn.addEventListener("click", async () => {
+        try {
+          await App.overlayManager.open("addSignatureDialog");
+        } catch (e) {
+          console.error("Failed to open signature dialog", e);
+        }
+      });
+    }
+  };
+
+  (async function boot() {
+    await wait(() => window.PDFViewerApplication?.eventBus);
+    const bus = window.PDFViewerApplication.eventBus;
+    bus.on("initialized", enableSignature);
+    bus.on("documentloaded", enableSignature);
+    try { enableSignature(); } catch {}
+  })();
+})();
+</script>
 }
 
 /* Ensure backdrop doesn’t steal taps; dialog sits on top */
