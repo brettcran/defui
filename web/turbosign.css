@@ -1,82 +1,80 @@
 /* TurboSign: Mobile "Fill & Sign" for stock PDF.js
-   - Open File + Save/Download stay in the MAIN toolbar
-   - Secondary menu removed entirely
-   - Sidebar/search/properties/print/presentation/spreads/horizontal+wrapped scroll/highlight/image-stamp hidden
-   - Larger tap targets + scaled icons
-   - NO horizontal hairline, NO middle divider (no separators), NO gaps between buttons
-   - Buttons visibly highlight when selected/pressed/focused
+   - KEEP (force-show): Open File, Download/Save, Zoom Out/In, FreeText, Ink, Signature, Highlight
+   - REMOVE: secondary menu, sidebar, search, properties, print, presentation, spreads, horizontal/wrapped scroll, image/stamp
+   - REMOVE: page navigator (Prev/Next, page number, page count text)
+   - NO toolbar hairline, NO split dividers, NO gaps; bigger tap targets; visible pressed/selected states
 */
 @media (max-width: 768px) {
-  /* ===== Remove secondary menu entirely ===== */
+  /* ===== Remove secondary menu ===== */
   #secondaryToolbarToggle,
-  #secondaryToolbar {
-    display: none !important;
-  }
+  #secondaryToolbar { display: none !important; }
 
-  /* ===== Hide sidebar & its toggle ===== */
+  /* ===== Remove sidebar & its toggle ===== */
   #sidebarContainer,
-  #sidebarToggleButton {
-    display: none !important;
-  }
+  #sidebarToggleButton { display: none !important; }
 
-  /* ===== Hide search UI ===== */
+  /* ===== Remove search UI ===== */
   #viewFindButton,
-  #findbar {
-    display: none !important;
-  }
+  #findbar { display: none !important; }
 
-  /* ===== Hide properties, print, presentation ===== */
+  /* ===== Remove properties, print, presentation ===== */
   #documentProperties,
   #printButton,
-  #presentationMode {
-    display: none !important;
-  }
+  #presentationMode { display: none !important; }
 
-  /* ===== Hide spreads & non-vertical scroll controls ===== */
+  /* ===== Remove spreads & non-vertical scroll controls ===== */
   #spreadOdd, #spreadEven,
-  #scrollHorizontal, #scrollWrapped, #scrollPage {
-    display: none !important;
-  }
+  #scrollHorizontal, #scrollWrapped, #scrollPage { display: none !important; }
 
-  /* ===== Hide highlight and image/stamp editors (keep FreeText/Ink/Signature) ===== */
-  #editorHighlightButton,
-  #editorHighlightParamsToolbar,
+  /* ===== Remove IMAGE/STAMP editor only ===== */
   #editorStampButton,
-  #editorStampParamsToolbar {
-    display: none !important;
-  }
+  #editorStampParamsToolbar { display: none !important; }
 
-  /* ===== Keep Open File and Save/Download in main toolbar ===== */
+  /* ===== REMOVE page navigator (Prev/Next + page number + "of N") ===== */
+  #previous,
+  #next,
+  #pageNumber,
+  #numPages,
+  #numPagesLabel,
+  #pageNumberLabel,
+  #pageNumberLabel2 { display: none !important; }
+
+  /* ===== Force-show keepers (even if viewer marks hiddenSmall/Medium/Large) ===== */
   #openFile,
-  #download {
+  #download,
+  #zoomOut,
+  #zoomIn,
+  #editorFreeText,           /* older id */
+  #editorInk,
+  #editorSignature,
+  #editorHighlight,          /* older id */
+  #editorFreeTextButton,     /* newer id */
+  #editorInkButton,
+  #editorSignatureButton,
+  #editorHighlightButton {
     display: inline-flex !important;
+    visibility: visible !important;
   }
+  /* Also keep highlight params toolbar */
+  #editorHighlightParamsToolbar { display: block !important; }
 
-  /* ===== Main toolbar sizing & cleanup ===== */
+  /* ===== Toolbar sizing & cleanup ===== */
   #toolbarContainer {
     height: 72px !important;
-    border-bottom: 0 !important;   /* remove the horizontal hairline */
+    border-bottom: 0 !important;  /* kill horizontal hairline */
     box-shadow: none !important;
   }
+  .toolbar, #findbar { border: 0 !important; box-shadow: none !important; }
 
-  /* Remove any borders/shadows on toolbars/findbar */
-  .toolbar, #findbar {
-    border: 0 !important;
-    box-shadow: none !important;
-  }
-
-  /* ===== No gaps between buttons ===== */
+  /* No gaps between buttons; keep everything in one row */
   #toolbarViewerLeft,
   #toolbarViewerMiddle,
-  #toolbarViewerRight {
-    display: flex !important;
-    gap: 0 !important;
-  }
+  #toolbarViewerRight { display: flex !important; gap: 0 !important; }
 
-  /* Uniform button sizing; rounded for clearer pressed state */
+  /* Uniform button boxes */
   #toolbarViewerLeft .toolbarButton,
   #toolbarViewerMiddle .toolbarButton,
-  #toolbarViewerRight  .toolbarButton,
+  #toolbarViewerRight .toolbarButton,
   .splitToolbarButton > .toolbarButton,
   .overlayButton {
     margin: 0 !important;
@@ -86,19 +84,18 @@
     padding: 8px !important;
     line-height: 1 !important;
     border-radius: 8px !important;
-    background: transparent !important; /* base transparent; states below */
+    background: transparent !important;
   }
 
-  /* ===== REMOVE ALL separators (no middle divider) ===== */
+  /* Remove ALL split lines (the “line in the middle”) */
+  .splitToolbarButton,
+  .splitToolbarButton > .toolbarButton { border: none !important; box-shadow: none !important; }
   .splitToolbarButtonSeparator,
   .horizontalToolbarSeparator {
-    display: none !important;
-    width: 0 !important;
-    height: 0 !important;
-    margin: 0 !important;
+    display: none !important; width: 0 !important; height: 0 !important; margin: 0 !important; background: transparent !important;
   }
 
-  /* Scale the masked sprite icons so they aren’t tiny in bigger buttons */
+  /* Scale masked sprite icons so they aren’t tiny */
   .toolbarButton::before,
   .secondaryToolbarButton::before,
   .overlayButton::before {
@@ -110,29 +107,19 @@
     margin: 0 auto !important;
   }
 
-  /* Inputs big enough to stop iOS focus-zoom */
-  #pageNumber, #findInput, .toolbarField {
+  /* Inputs big enough to stop iOS focus-zoom (keep for any remaining fields) */
+  .toolbarField {
     font-size: 18px !important;
     height: 44px !important;
     padding: 6px 10px !important;
   }
 
-  /* ===== Visible states ===== */
-  /* Toggled tool (e.g., FreeText/Ink/Signature) */
+  /* States */
   .toolbarButton.toggled,
   .toolbarButton[aria-pressed="true"] {
     background: rgba(38,132,255,0.18) !important;
     box-shadow: inset 0 0 0 2px rgba(38,132,255,0.9) !important;
   }
-
-  /* Pressed/active feedback */
-  .toolbarButton:active {
-    background: rgba(38,132,255,0.26) !important;
-  }
-
-  /* Keyboard/accessibility focus ring */
-  .toolbarButton:focus-visible {
-    outline: 3px solid rgba(38,132,255,0.95) !important;
-    outline-offset: 2px !important;
-  }
+  .toolbarButton:active { background: rgba(38,132,255,0.26) !important; }
+  .toolbarButton:focus-visible { outline: 3px solid rgba(38,132,255,0.95) !important; outline-offset: 2px !important; }
 }
