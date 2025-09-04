@@ -6776,11 +6776,11 @@ dialog :link{
 }
 
 /* ===== TurboSign MOBILE SLIM OVERRIDES (authoritative, keep LAST) =====
-   - Works on small screens regardless of body classes
    - Slim UI: hide sidebar + toggle, page nav, prev/next, scale select
    - Secondary menu: keep Vertical Scrolling only; hide Page/Horizontal/Wrapped + Spreads
    - Remove toolbar separators & bottom border; enlarge buttons/icons; tight layout
-   - Hide manual zoom +/- to declutter; PDF.js zoom still available via menu/gestures
+   - Hide manual zoom +/-
+   - Hide Highlight editor tool
    --------------------------------------------------------------------- */
 @media (max-width: 820px) {
   /* Borders / separators */
@@ -6836,6 +6836,9 @@ dialog :link{
   /* Remove manual zoom +/- in the toolbar */
   #toolbarViewerMiddle #zoomOutButton,
   #toolbarViewerMiddle #zoomInButton { display: none !important; }
+
+  /* Hide Highlight editor tool */
+  #editorHighlight { display: none !important; }
 
   /* Secondary menu trims: keep only Vertical Scrolling */
   #secondaryToolbar #scrollPage,
