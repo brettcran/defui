@@ -6970,3 +6970,23 @@ body:has(#overlayContainer:not(.hidden)) #viewerContainer {
   height: 4px !important;
   background: var(--loadingBarBackground, #e6e6e6) !important;
 }
+
+/* --- Icon visibility overrides (iOS/Safari mask color fix) --- */
+:root {
+  /* Force solid glyph color so masked SVG icons show up */
+  --toolbar-icon-bg-color: #1a1a1a !important;
+  --toolbar-icon-hover-bg-color: #000000 !important;
+  --toolbar-icon-opacity: 1 !important;
+  --icon-size: 16px !important;
+}
+
+/* Ensure pseudo-element actually paints above button background */
+.toolbarButton::before {
+  background-color: var(--toolbar-icon-bg-color) !important;
+  opacity: var(--toolbar-icon-opacity) !important;
+}
+
+/* Improve contrast for toggled state icon glyphs */
+.toolbarButton.toggled::before {
+  background-color: var(--toggled-btn-color) !important;
+}
