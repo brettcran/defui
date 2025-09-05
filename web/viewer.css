@@ -7151,3 +7151,80 @@ dialog.signatureDialog#addSignatureDialog {
 /* Make the draw surface fill horizontally */
 #addSignatureDrawContainer { padding: 8px 16px !important; }
 #addSignatureDraw { width: 100% !important; height: 100% !important; }
+
+
+
+/* --- Signature modal polish: remove header/title and tab row; round corners; ensure buttons visible --- */
+
+/* Round the entire dialog */
+dialog.signatureDialog#addSignatureDialog {
+  border-radius: 14px !important;
+  overflow: hidden !important;
+}
+
+/* Hide the top "Add a signature" title bar and the tabs row */
+#addSignatureDialog .title,
+#addSignatureOptions { display: none !important; }
+
+/* Hide placeholder label inside the draw area */
+#addSignatureDrawPlaceholder { display: none !important; }
+
+/* Layout: make container flex so canvas expands, and buttons stick to bottom */
+.signatureDialog #addSignatureContainer,
+.signatureDialog .mainContainer {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+#addSignatureActionContainer {
+  flex: 1 1 auto !important;
+  overflow: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+#addSignatureDrawContainer {
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 12px 16px !important;
+}
+
+#addSignatureDraw {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  height: auto !important;
+  touch-action: none !important; /* prevent viewport panning while signing */
+}
+
+/* Keep Save signature visible; we already hid Description earlier */
+#addSignatureDescriptionContainer { display: none !important; }
+
+/* Give the action buttons a sticky footer feel */
+.signatureDialog .dialogButtonsGroup {
+  margin-top: 8px !important;
+  position: sticky !important;
+  bottom: 0 !important;
+  background: #fff !important;
+  padding-top: 8px !important;
+}
+
+/* Landscape sizing: wider pad, make sure buttons are on-screen */
+dialog.signatureDialog#addSignatureDialog {
+  width: min(96vw, 860px) !important;
+  height: 52vh !important;
+  max-height: 58vh !important;
+}
+@media (orientation: landscape) {
+  dialog.signatureDialog#addSignatureDialog {
+    width: min(96vw, 980px) !important;
+    height: 64vh !important;
+    max-height: 68vh !important;
+  }
+}
+
+/* Ensure the clear/save rows don't crowd the canvas */
+#addSignatureControls { margin: 4px 16px 0 !important; }
+#addSignatureSaveContainer { margin: 8px 16px 0 !important; }
+
