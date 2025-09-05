@@ -957,7 +957,7 @@ See https://github.com/adobe-type-tools/cmap-resources
         const rng = document.getElementById('addSignatureDrawThickness');
         if (rng) {
           try {
-            rng.value = 3; // reasonable solid line
+            rng.value = 6; // reasonable solid line
             rng.dispatchEvent(new Event('input', { bubbles: true }));
             rng.dispatchEvent(new Event('change', { bubbles: true }));
           } catch {}

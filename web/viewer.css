@@ -7228,3 +7228,21 @@ dialog.signatureDialog#addSignatureDialog {
 #addSignatureControls { margin: 4px 16px 0 !important; }
 #addSignatureSaveContainer { margin: 8px 16px 0 !important; }
 
+
+/* --- Force signature modal to always be white background, ignore dark mode --- */
+dialog.signatureDialog#addSignatureDialog,
+dialog.signatureDialog#addSignatureDialog * {
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+
+/* Ensure action buttons still have their styles */
+dialog.signatureDialog#addSignatureDialog .primaryButton {
+  background-color: #1f6feb !important;
+  color: #fff !important;
+}
+dialog.signatureDialog#addSignatureDialog .secondaryButton {
+  background-color: #f5f5f5 !important;
+  color: #000 !important;
+}
+
