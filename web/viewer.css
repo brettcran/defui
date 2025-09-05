@@ -7123,3 +7123,31 @@ dialog.signatureDialog#addSignatureDialog {
 #addSignatureControls {
   margin-top: 8px !important;
 }
+
+
+/* Ensure Type/Image tabs remain hidden */
+#addSignatureTypeButton, #addSignatureImageButton,
+#addSignatureTypeContainer, #addSignatureImageContainer { display: none !important; }
+
+/* Hide Description field but keep Save signature */
+#addSignatureDescriptionContainer { display: none !important; }
+
+/* Hide the thickness slider UI (we set a fixed value via JS) */
+#addSignatureDrawContainer #thickness { display: none !important; }
+
+/* Landscape-style signature pad: wide and not too tall */
+dialog.signatureDialog#addSignatureDialog {
+  width: min(96vw, 720px) !important;
+  height: 42vh !important;
+  max-height: 48vh !important;
+}
+@media (orientation: landscape) {
+  dialog.signatureDialog#addSignatureDialog {
+    width: min(92vw, 900px) !important;
+    height: 56vh !important;
+    max-height: 60vh !important;
+  }
+}
+/* Make the draw surface fill horizontally */
+#addSignatureDrawContainer { padding: 8px 16px !important; }
+#addSignatureDraw { width: 100% !important; height: 100% !important; }

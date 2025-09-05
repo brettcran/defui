@@ -873,5 +873,107 @@ See https://github.com/adobe-type-tools/cmap-resources
     })();
   </script>
 
+
+  <script type="module">
+    (async () => {
+      const app = window.PDFViewerApplication;
+      if (!app?.initializedPromise) return;
+      await app.initializedPromise;
+      const dlg = document.getElementById('addSignatureDialog');
+
+      function forceDrawMode() {
+        const action = document.getElementById('addSignatureActionContainer');
+        const drawBtn = document.getElementById('addSignatureDrawButton');
+        const typeBtn = document.getElementById('addSignatureTypeButton');
+        const imgBtn  = document.getElementById('addSignatureImageButton');
+        const drawCt = document.getElementById('addSignatureDrawContainer');
+        const typeCt = document.getElementById('addSignatureTypeContainer');
+        const imgCt  = document.getElementById('addSignatureImageContainer');
+
+        // Hide other modes fully
+        [typeBtn, imgBtn, typeCt, imgCt].forEach(el => { if (el) el.style.display = 'none'; });
+
+        // Set ARIA + dataset to draw
+        if (drawBtn) {
+          drawBtn.setAttribute('aria-selected', 'true');
+          drawBtn.tabIndex = 0;
+        }
+        if (typeBtn) typeBtn.setAttribute('aria-selected','false');
+        if (imgBtn) imgBtn.setAttribute('aria-selected','false');
+
+        if (action) action.dataset.selected = 'draw';
+        if (drawCt) {
+          drawCt.setAttribute('aria-hidden', 'false');
+          drawCt.tabIndex = 0;
+        }
+        if (typeCt) typeCt.setAttribute('aria-hidden', 'true');
+        if (imgCt)  imgCt.setAttribute('aria-hidden', 'true');
+
+        // Focus the draw surface so the first touch draws
+        const svg = document.getElementById('addSignatureDraw');
+        if (svg && svg.focus) { try { svg.focus(); } catch (e) {} }
+      }
+
+      if (dlg) {
+        // Whenever dialog opens, force draw mode
+        const obs = new MutationObserver(() => {
+          if (dlg.hasAttribute('open')) {
+            document.body.classList.add('modal-open');
+            forceDrawMode();
+          }
+        });
+        obs.observe(dlg, { attributes: true, attributeFilter: ['open'] });
+
+        // Guard: if anything flips away from draw, immediately restore draw
+        dlg.addEventListener('click', () => {
+          const action = document.getElementById('addSignatureActionContainer');
+          if (action && action.dataset.selected !== 'draw') {
+            forceDrawMode();
+          }
+        }, true);
+        dlg.addEventListener('keydown', (e) => {
+          const action = document.getElementById('addSignatureActionContainer');
+          if (action && action.dataset.selected !== 'draw') {
+            forceDrawMode();
+          }
+        }, true);
+
+        ['close','cancel'].forEach(ev => dlg.addEventListener(ev, () => {
+          document.body.classList.remove('modal-open');
+        }));
+      }
+    })();
+  </script>
+
+
+  <script type="module">
+    (async () => {
+      const app = window.PDFViewerApplication;
+      if (!app?.initializedPromise) return;
+      await app.initializedPromise;
+      const dlg = document.getElementById('addSignatureDialog');
+
+      function setFixedThickness() {
+        const rng = document.getElementById('addSignatureDrawThickness');
+        if (rng) {
+          try {
+            rng.value = 3; // reasonable solid line
+            rng.dispatchEvent(new Event('input', { bubbles: true }));
+            rng.dispatchEvent(new Event('change', { bubbles: true }));
+          } catch {}
+        }
+      }
+
+      if (dlg) {
+        const obs = new MutationObserver(() => {
+          if (dlg.hasAttribute('open')) {
+            setFixedThickness();
+          }
+        });
+        obs.observe(dlg, { attributes: true, attributeFilter: ['open'] });
+      }
+    })();
+  </script>
+
 </body>
 </html>
