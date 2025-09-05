@@ -784,5 +784,94 @@ See https://github.com/adobe-type-tools/cmap-resources
      })();
    </script>
 
-  </body>
+  
+  <script type="module">
+    (async () => {
+      const app = window.PDFViewerApplication;
+      if (!app?.initializedPromise) return;
+      await app.initializedPromise;
+
+      const body = document.body;
+      const lock = () => body.classList.add('modal-open');
+      const unlock = () => body.classList.remove('modal-open');
+
+      // Observe all dialogs within #dialogContainer
+      const container = document.getElementById('dialogContainer');
+      if (container) {
+        const toggle = () => {
+          const anyOpen = !!container.querySelector('.dialog[open]');
+          if (anyOpen) lock(); else unlock();
+        };
+        const mo = new MutationObserver(toggle);
+        mo.observe(container, { attributes: true, subtree: true, attributeFilter: ['open', 'style', 'class'] });
+        toggle();
+      }
+
+      // Also hook specific signature dialogs if present
+      ['addSignatureDialog','newAltTextDialog','altTextDialog','altTextSettingsDialog'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('close', () => unlock());
+          el.addEventListener('cancel', () => unlock());
+          el.addEventListener('click', () => lock());
+        }
+      });
+    })();
+  </script>
+
+
+  <script type="module">
+    (async () => {
+      const app = window.PDFViewerApplication;
+      if (!app?.initializedPromise) return;
+      await app.initializedPromise;
+      const btn = document.getElementById('editorFreeTextButton');
+      if (btn) {
+        btn.addEventListener('click', () => {
+          try { app.pdfViewer?.focus?.(); } catch {}
+        }, { capture: true });
+      }
+    })();
+  </script>
+
+
+  <script type="module">
+    (async () => {
+      const app = window.PDFViewerApplication;
+      if (!app?.initializedPromise) return;
+      await app.initializedPromise;
+
+      const dlg = document.getElementById('addSignatureDialog');
+      const ensureDrawSelected = () => {
+        try {
+          const action = document.getElementById('addSignatureActionContainer');
+          if (action && action.dataset.selected !== 'draw') {
+            const btn = document.getElementById('addSignatureDrawButton');
+            btn?.click?.();
+            action.dataset.selected = 'draw';
+          }
+        } catch {}
+      };
+
+      if (dlg) {
+        // When dialog opens, switch to Draw and clamp scroll focus
+        const obs = new MutationObserver(() => {
+          if (dlg.hasAttribute('open')) {
+            ensureDrawSelected();
+            document.body.classList.add('modal-open');
+          }
+        });
+        obs.observe(dlg, { attributes: true, attributeFilter: ['open'] });
+
+        dlg.addEventListener('close', () => document.body.classList.remove('modal-open'));
+        dlg.addEventListener('cancel', () => document.body.classList.remove('modal-open'));
+      }
+
+      // Also hide the "Type" and "Image" signature types from JS if they were toggled earlier
+      const hideEl = (id) => { const el = document.getElementById(id); if (el) el.style.display = 'none'; };
+      ['addSignatureTypeButton','addSignatureImageButton','addSignatureTypeContainer','addSignatureImageContainer'].forEach(hideEl);
+    })();
+  </script>
+
+</body>
 </html>

@@ -7053,3 +7053,73 @@ body:has(#overlayContainer:not(.hidden)) #viewerContainer {
     background: var(--doorhangerBackground, #fff) !important;
   }
 }
+
+/* --- Prevent background scroll/interactions when any dialog is open --- */
+body.modal-open { overflow: hidden !important; }
+body.modal-open #viewerContainer { pointer-events: none !important; touch-action: none !important; }
+
+/* Hide Text Selection and Hand Tool group */
+#secondaryToolbar #cursorToolButtons { display: none !important; }
+
+/* Always show page counter on mobile */
+#toolbarViewerLeft #pageNumber, #toolbarViewerLeft #numPages { display: inline-flex !important; }
+
+/* --- Signature dialog clamp and resize (thin & long) --- */
+dialog.signatureDialog#addSignatureDialog {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  margin: 0 !important;
+  width: 380px !important;
+  max-width: 92vw !important;
+  height: 80vh !important;
+  max-height: 86vh !important;
+  overflow: hidden !important;
+  touch-action: none !important; /* prevent viewport panning while drawing */
+  z-index: 10001 !important;
+}
+
+@media (orientation: landscape) and (max-width: 900px) {
+  dialog.signatureDialog#addSignatureDialog {
+    width: 460px !important;
+    height: 78vh !important;
+  }
+}
+
+.signatureDialog #addSignatureContainer,
+.signatureDialog .mainContainer {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+#addSignatureActionContainer {
+  flex: 1 1 auto !important;
+  overflow: hidden !important;
+}
+
+/* Make the drawing area fill available space */
+#addSignatureDrawContainer {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+#addSignatureDraw {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  height: auto !important;
+}
+
+/* Hide Type + Image modes entirely */
+#addSignatureTypeButton,
+#addSignatureImageButton,
+#addSignatureTypeContainer,
+#addSignatureImageContainer {
+  display: none !important;
+}
+
+/* Tweak controls area spacing */
+#addSignatureControls {
+  margin-top: 8px !important;
+}
