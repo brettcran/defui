@@ -6990,3 +6990,66 @@ body:has(#overlayContainer:not(.hidden)) #viewerContainer {
 .toolbarButton.toggled::before {
   background-color: var(--toggled-btn-color) !important;
 }
+
+/* --- Secondary toolbar declutter --- */
+#secondaryToolbar .horizontalToolbarSeparator { display: none !important; }
+
+/* Always show Open & Save options, even on small screens */
+#secondaryToolbar #secondaryOpenFile { display: block !important; }
+#secondaryToolbar #secondaryDownload { display: block !important; }
+
+/* Hide unwanted items */
+#secondaryToolbar #secondaryPrint,
+#secondaryToolbar #presentationMode,
+#secondaryToolbar #viewBookmark,
+#secondaryToolbar #viewBookmarkSeparator,
+#secondaryToolbar #pageRotateCw,
+#secondaryToolbar #pageRotateCcw,
+#secondaryToolbar #scrollModeButtons,
+#secondaryToolbar #spreadModeButtons,
+#secondaryToolbar #imageAltTextSettings,
+#secondaryToolbar #imageAltTextSettingsSeparator,
+#secondaryToolbar #documentProperties { display: none !important; }
+
+/* Optional grouping container sometimes controls visibility on mobile */
+#secondaryToolbar .visibleMediumView { display: block !important; }
+
+/* Keep cursor tools group and first/last page */
+#secondaryToolbar #cursorToolButtons { display: block !important; }
+#secondaryToolbar #firstPage,
+#secondaryToolbar #lastPage { display: block !important; }
+
+
+/* Hide Image (Stamp) tool from the main toolbar */
+#editorStamp { display: none !important; }
+
+
+/* --- Mobile doorhanger/menu positioning fixes --- */
+@media (max-width: 900px) {
+  /* Findbar: pin to top center under toolbar to avoid off-screen clipping */
+  #findbar.doorHanger {
+    position: fixed !important;
+    top: 56px !important; /* approx toolbar height */
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    right: auto !important;
+    width: min(94vw, 480px) !important;
+    z-index: 10000 !important;
+  }
+
+  /* Signature params menu (Add signature) */
+  #editorSignatureParamsToolbar.doorHangerRight.menu {
+    position: fixed !important;
+    top: 56px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    right: auto !important;
+    width: min(94vw, 420px) !important;
+    z-index: 10000 !important;
+  }
+
+  /* Ensure menus have a solid background so content is readable */
+  .doorHanger, .menu {
+    background: var(--doorhangerBackground, #fff) !important;
+  }
+}
