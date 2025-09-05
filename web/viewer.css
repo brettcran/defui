@@ -7246,3 +7246,56 @@ dialog.signatureDialog#addSignatureDialog .secondaryButton {
   color: #000 !important;
 }
 
+
+/* --- Ensure signature stroke is clearly visible --- */
+#addSignatureDraw path,
+#addSignatureDraw svg path,
+#addSignatureDrawContainer svg path {
+  stroke: #000000 !important;
+  stroke-width: 6px !important;
+}
+
+/* If PDF.js uses currentColor for stroke, force the drawing area color to black */
+#addSignatureDrawContainer,
+#addSignatureDraw {
+  color: #000000 !important;
+}
+
+/* --- Make secondary menu & doorhanger text always readable --- */
+#secondaryToolbar, #secondaryFooter, #secondaryToolbar *,
+.doorHanger, .doorHanger *,
+.menu, .menu *,
+#findbar, #findbar * {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+/* Inputs in findbar */
+#findInput, #findbar input[type="checkbox"], #findbar label, #findbar button {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border-color: #c7c7c7 !important;
+}
+
+#findInput::placeholder {
+  color: #6b6b6b !important;
+}
+
+/* Menu icons that rely on mask should fill dark so they are visible */
+#secondaryToolbar .toolbarButton::before,
+.doorHanger .toolbarButton::before,
+.menu .toolbarButton::before {
+  background-color: #1a1a1a !important;
+}
+
+/* Disable state still visible */
+#secondaryToolbar .toolbarButton[disabled]::before,
+#secondaryToolbar .toolbarButton[disabled],
+.menu .toolbarButton[disabled] {
+  opacity: 0.35 !important;
+}
+
+/* Keep primary/secondary buttons styled in dialogs */
+dialog .primaryButton { background-color: #1f6feb !important; color: #fff !important; }
+dialog .secondaryButton { background-color: #f5f5f5 !important; color: #000 !important; }
+
