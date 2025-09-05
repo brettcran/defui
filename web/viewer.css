@@ -7299,80 +7299,18 @@ dialog.signatureDialog#addSignatureDialog .secondaryButton {
 dialog .primaryButton { background-color: #1f6feb !important; color: #fff !important; }
 dialog .secondaryButton { background-color: #f5f5f5 !important; color: #000 !important; }
 
-
-
-/* --- Anti-hairline patch: make toolbar clickable and hide phantom line --- */
-#toolbarContainer {
-  position: relative !important;
-  z-index: 2 !important;
-  background: var(--toolbarBackground, #f3f3f3) !important;
-  border-bottom: none !important;
+/* === Toolbar icon visibility hotfix (iOS/Safari safe) === */
+#toolbarContainer #toolbarViewer .toolbarButton { color: #1a1a1a !important; }
+#toolbarContainer #toolbarViewer .toolbarButton::before {
+  background-color: currentColor !important;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+          mask-position: center;
+  -webkit-mask-size: contain;
+          mask-size: contain;
 }
-#loadingBar {
-  display: none !important;
-  height: 0 !important;
-  background: transparent !important;
-  border: 0 !important;
-  z-index: 1 !important;
-  pointer-events: none !important;
-}
-.loadingInProgress #loadingBar {
-  display: block !important;
-  height: 4px !important;
-  background: var(--loadingBarBackground, #e6e6e6) !important;
-}
-
-
-/* --- Lock background when dialogs are open --- */
-body.modal-open { overflow: hidden !important; }
-body.modal-open #viewerContainer { pointer-events: none !important; touch-action: none !important; }
-
-
-/* --- Signature modal: always white, readable, and interactive --- */
-dialog.signatureDialog#addSignatureDialog {
-  background: #ffffff !important;
-  color: #000000 !important;
-  border-radius: 14px !important;
-}
-dialog.signatureDialog#addSignatureDialog .dialogContent,
-dialog.signatureDialog#addSignatureDialog .mainContainer,
-dialog.signatureDialog#addSignatureDialog #addSignatureControls,
-dialog.signatureDialog#addSignatureDialog #addSignatureSaveContainer,
-dialog.signatureDialog#addSignatureDialog .dialogButtonsGroup {
-  background: #ffffff !important;
-  color: #000000 !important;
-}
-/* Keep draw area interactive and visible */
-#addSignatureDrawContainer,
-#addSignatureDraw {
-  background: #ffffff !important;
-  color: #000000 !important; /* in case strokes use currentColor */
-  pointer-events: auto !important;
-  -webkit-user-select: none !important;
-  user-select: none !important;
-  touch-action: none !important;
-  z-index: 10002 !important;
-}
-/* Ensure drawn paths are clearly visible */
-#addSignatureDraw path,
-#addSignatureDrawContainer svg path {
-  stroke: #000000 !important;
-  stroke-width: 6px !important;
-  fill: transparent !important;
-}
-
-
-/* --- Doorhangers & secondary menu: force readable colors --- */
-#secondaryToolbar, #secondaryToolbar *,
-.doorHanger, .doorHanger *,
-.menu, .menu *,
-#findbar, #findbar * {
-  background-color: #ffffff !important;
-  color: #000000 !important;
-}
-#findInput::placeholder { color: #6b6b6b !important; }
-#secondaryToolbar .toolbarButton::before,
-.doorHanger .toolbarButton::before,
-.menu .toolbarButton::before {
-  background-color: #1a1a1a !important;
-}
+#secondaryToolbar .secondaryToolbarButton,
+#secondaryToolbar .toolbarButton { color: #1a1a1a !important; }
+#secondaryToolbar .secondaryToolbarButton::before,
+#secondaryToolbar .toolbarButton::before { background-color: currentColor !important; }

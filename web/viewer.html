@@ -975,46 +975,5 @@ See https://github.com/adobe-type-tools/cmap-resources
     })();
   </script>
 
-
-    <script type="module">
-      (async () => {
-        const app = window.PDFViewerApplication;
-        if (!app?.initializedPromise) return;
-        await app.initializedPromise;
-        const dlg = document.getElementById('addSignatureDialog');
-
-        function activateDrawDefaults() {
-          try {
-            // Force Draw mode active
-            document.getElementById('addSignatureDrawButton')?.click?.();
-          } catch {}
-          // Set a solid default thickness = 6
-          const rng = document.getElementById('addSignatureDrawThickness');
-          if (rng) {
-            try {
-              rng.value = 6;
-              rng.dispatchEvent(new Event('input', { bubbles: true }));
-              rng.dispatchEvent(new Event('change', { bubbles: true }));
-            } catch {}
-          }
-          // Focus draw surface so first touch draws
-          const svg = document.getElementById('addSignatureDraw');
-          try { svg?.focus?.(); } catch {}
-        }
-
-        if (dlg) {
-          const mo = new MutationObserver(() => {
-            if (dlg.hasAttribute('open')) {
-              document.body.classList.add('modal-open');
-              activateDrawDefaults();
-            }
-          });
-          mo.observe(dlg, { attributes: true, attributeFilter: ['open'] });
-          dlg.addEventListener('close', () => document.body.classList.remove('modal-open'));
-          dlg.addEventListener('cancel', () => document.body.classList.remove('modal-open'));
-        }
-      })();
-    </script>
-
 </body>
 </html>
