@@ -6947,3 +6947,26 @@ body:has(#overlayContainer:not(.hidden)) #viewerContainer {
     font-size: 16px;
   }
 }
+
+/* --- Anti-hairline patch: make toolbar clickable and hide phantom line --- */
+#toolbarContainer {
+  position: relative !important;
+  z-index: 2 !important;
+  background: var(--toolbarBackground, #f3f3f3) !important;
+  border-bottom: none !important;
+}
+
+#loadingBar {
+  display: none !important;
+  height: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  z-index: 1 !important;
+  pointer-events: none !important;
+}
+
+.loadingInProgress #loadingBar {
+  display: block !important;
+  height: 4px !important;
+  background: var(--loadingBarBackground, #e6e6e6) !important;
+}
