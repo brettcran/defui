@@ -1,9 +1,36 @@
 <!doctype html>
-<meta charset="utf-8">
-<title>TurboSign</title>
-<script>
-  // Forward / to /web/viewer.html preserving ?query and #hash
-  var q = location.search || "";
-  var h = location.hash || "";
-  location.replace("/web/viewer.html" + q + h);
-</script>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>TurboSign – Viewer Redirect</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="TurboSign PDF viewer redirect. Automatically forwards to the main viewer UI.">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="robots" content="noindex">
+  </head>
+  <body>
+    <noscript>
+      JavaScript is required to use the TurboSign viewer. Please enable JavaScript and reload this page.
+    </noscript>
+    <script>
+      // Forward / to /web/viewer.html (or the correct subdirectory)
+      // while preserving ?query and #hash values.
+      (function () {
+        var q = window.location.search || "";
+        var h = window.location.hash || "";
+
+        // Compute a base path that works at root or in a subdirectory
+        // e.g. /defui/index.html -> /defui/
+        var basePath = window.location.pathname.replace(/\/[^\/]*$/, "/");
+
+        // Ensure basePath ends with a single slash
+        if (!/\/$/.test(basePath)) {
+          basePath += "/";
+        }
+
+        // Use a relative-style redirect so it works on GitHub Pages and custom domains
+        window.location.replace(basePath + "web/viewer.html" + q + h);
+      })();
+    </script>
+  </body>
+</html>
