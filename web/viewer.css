@@ -7151,3 +7151,31 @@ dialog.signatureDialog#addSignatureDialog {
 /* Make the draw surface fill horizontally */
 #addSignatureDrawContainer { padding: 8px 16px !important; }
 #addSignatureDraw { width: 100% !important; height: 100% !important; }
+
+
+/* === TurboSign Clean Mode Overrides ===================================== */
+
+/* Hide default PDF.js toolbar chrome */
+#toolbarContainer {
+  display: none !important;
+}
+
+/* Outer container background */
+#outerContainer {
+  background-color: #020617;
+}
+
+/* Page shadow */
+.page {
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.9);
+}
+
+/* Sidebar border subtler */
+#sidebarContainer {
+  border-right: 1px solid #0f172a;
+}
+
+/* Scrollbar coloring */
+#viewerContainer {
+  scrollbar-color: #4b5563 #020617;
+}

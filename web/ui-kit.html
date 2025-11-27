@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>defui – UI Kit</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="Reusable UI primitives for TurboSign and defui: buttons, cards, forms, alerts, and layout." />
+    <link rel="stylesheet" href="./ui.css" />
+  </head>
+  <body>
+    <div class="ui-page">
+      <div class="ui-page__inner">
+        <header class="ui-header">
+          <div class="ui-header-main">
+            <div class="ui-eyebrow">
+              <span class="ui-eyebrow-pill"><span>UI</span></span>
+              <span>Default interface kit for TurboSign &amp; defui</span>
+            </div>
+            <h1 class="ui-title">Interface kit for viewer-style apps</h1>
+            <p class="ui-subtitle">
+              Reusable pieces for PDF viewers and dashboard-like tools:
+              buttons, cards, alerts, forms, and layout primitives. Copy any
+              section into your own page and adjust tokens in <code class="ui-kbd">ui.css</code>.
+            </p>
+          </div>
+          <div class="ui-stack ui-stack--md" style="max-width: 260px;">
+            <div class="ui-toolbar">
+              <div class="ui-toolbar__left">
+                <button class="ui-btn ui-btn--primary ui-btn-icon" type="button" aria-label="Primary action">
+                  <span>✓</span>
+                </button>
+                <button class="ui-btn ui-btn--ghost ui-btn-icon" type="button" aria-label="Secondary action">
+                  <span>?</span>
+                </button>
+              </div>
+              <div class="ui-toolbar__right">
+                <span class="ui-chip">
+                  <span class="ui-chip-dot"></span>
+                  Live preview
+                </span>
+              </div>
+            </div>
+            <p class="ui-text-xs ui-text-soft">
+              Think of this page as the “kitchen sink” for your UI: every
+              section is a pattern you can reuse in the TurboSign viewer shell.
+            </p>
+          </div>
+        </header>
+
+        <section class="ui-section" id="buttons">
+          <div class="ui-section__header">
+            <div>
+              <p class="ui-section__kicker">Actions</p>
+              <h2 class="ui-section__title">Buttons &amp; toolbar patterns</h2>
+            </div>
+            <p class="ui-section__meta">
+              Use <code class="ui-kbd">.ui-btn</code> plus modifiers for variants.
+            </p>
+          </div>
+
+          <div class="ui-grid ui-grid--2">
+            <div class="ui-card">
+              <h3 class="ui-card__title">Primary actions</h3>
+              <p class="ui-card__body">
+                Use solid buttons for the main action in a toolbar or dialog,
+                and ghost buttons for secondary or low-emphasis actions.
+              </p>
+              <div class="ui-stack ui-stack--md ui-mt-md">
+                <div class="ui-stack">
+                  <div>
+                    <button class="ui-btn ui-btn--primary" type="button">
+                      Save changes
+                    </button>
+                    <button class="ui-btn" type="button">
+                      Cancel
+                    </button>
+                    <button class="ui-btn ui-btn--ghost" type="button">
+                      Preview
+                    </button>
+                  </div>
+                  <p class="ui-text-xs ui-text-soft">
+                    Combine a single <code class="ui-kbd">.ui-btn--primary</code>
+                    with one or two neutral / ghost buttons.
+                  </p>
+                </div>
+
+                <div class="ui-stack">
+                  <div>
+                    <button class="ui-btn ui-btn--danger" type="button">
+                      Delete document
+                    </button>
+                    <button class="ui-btn ui-btn--ghost" type="button">
+                      Archive instead
+                    </button>
+                  </div>
+                  <p class="ui-text-xs ui-text-soft">
+                    Reserve <code class="ui-kbd">.ui-btn--danger</code> for
+                    destructive, hard-to-reverse actions.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="ui-card ui-card--muted">
+              <h3 class="ui-card__title">Toolbar layout</h3>
+              <p class="ui-card__body">
+                Combine a primary CTA, lightweight icons, and tabs or filters
+                for a compact viewer toolbar. This mirrors the feel of a
+                desktop app top bar.
+              </p>
+
+              <div class="ui-mt-md">
+                <div class="ui-toolbar">
+                  <div class="ui-toolbar__left">
+                    <button class="ui-btn ui-btn--primary" type="button">
+                      Sign
+                    </button>
+                    <button class="ui-btn ui-btn--ghost" type="button">
+                      Comment
+                    </button>
+                    <button class="ui-btn ui-btn-icon" type="button" aria-label="More">
+                      ···
+                    </button>
+                  </div>
+                  <div class="ui-toolbar__right">
+                    <div class="ui-tabs" role="tablist">
+                      <button class="ui-tab" data-active="true" type="button">Document</button>
+                      <button class="ui-tab" type="button">Fields</button>
+                      <button class="ui-tab" type="button">Activity</button>
+                    </div>
+                  </div>
+                </div>
+                <p class="ui-text-xs ui-text-soft ui-mt-sm">
+                  Keep the toolbar dense but legible, mirroring desktop
+                  tooling rather than a generic marketing site navbar.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="ui-section" id="forms">
+          <div class="ui-section__header">
+            <div>
+              <p class="ui-section__kicker">Data entry</p>
+              <h2 class="ui-section__title">Forms &amp; controls</h2>
+            </div>
+            <p class="ui-section__meta">
+              Align label, input, hint into a single <code class="ui-kbd">.ui-field</code>.
+            </p>
+          </div>
+
+          <div class="ui-grid ui-grid--2">
+            <div class="ui-card">
+              <h3 class="ui-card__title">Simple form</h3>
+              <p class="ui-card__body">
+                Use this pattern for document metadata, profile settings, or
+                quick filters in a sidebar.
+              </p>
+              <div class="ui-stack ui-stack--md ui-mt-md">
+                <div class="ui-field">
+                  <label class="ui-label" for="doc-name">Document name</label>
+                  <input class="ui-input" id="doc-name" placeholder="Vendor agreement – March" />
+                </div>
+                <div class="ui-field">
+                  <label class="ui-label" for="doc-type">Type</label>
+                  <select class="ui-select" id="doc-type">
+                    <option>PDF</option>
+                    <option>Contract</option>
+                    <option>Proposal</option>
+                  </select>
+                </div>
+                <div class="ui-field">
+                  <label class="ui-label" for="doc-notes">Internal notes</label>
+                  <textarea class="ui-textarea" id="doc-notes" placeholder="Add reminders for your future self…"></textarea>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:0.5rem;">
+                  <button class="ui-btn" type="button">Cancel</button>
+                  <button class="ui-btn ui-btn--primary" type="button">Save</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="ui-card ui-card--muted">
+              <h3 class="ui-card__title">Toggle rows</h3>
+              <p class="ui-card__body">
+                Use a label plus a short hint for preferences or feature flags.
+              </p>
+              <div class="ui-stack ui-stack--md ui-mt-md">
+                <div class="ui-toggle-row">
+                  <div>
+                    <div class="ui-toggle-row__label">Require signature</div>
+                    <div class="ui-toggle-row__hint">Recipients must sign before downloading.</div>
+                  </div>
+                  <button class="ui-btn ui-btn--primary ui-btn-icon" type="button" aria-pressed="true">
+                    ✓
+                  </button>
+                </div>
+
+                <div class="ui-toggle-row">
+                  <div>
+                    <div class="ui-toggle-row__label">Send reminder emails</div>
+                    <div class="ui-toggle-row__hint">Automatically follow up if no activity in 3 days.</div>
+                  </div>
+                  <button class="ui-btn ui-btn-icon" type="button" aria-pressed="false">
+                    ○
+                  </button>
+                </div>
+
+                <div class="ui-toggle-row">
+                  <div>
+                    <div class="ui-toggle-row__label">Show advanced audit log</div>
+                    <div class="ui-toggle-row__hint">Keep this off for most recipients.</div>
+                  </div>
+                  <button class="ui-btn ui-btn-icon" type="button" aria-pressed="false">
+                    ○
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="ui-section" id="feedback">
+          <div class="ui-section__header">
+            <div>
+              <p class="ui-section__kicker">Feedback</p>
+              <h2 class="ui-section__title">Alerts &amp; status</h2>
+            </div>
+            <p class="ui-section__meta">
+              Stack alerts at the top of the canvas or in a dedicated activity rail.
+            </p>
+          </div>
+
+          <div class="ui-grid ui-grid--2">
+            <div class="ui-card">
+              <div class="ui-stack ui-stack--md">
+                <div class="ui-alert ui-alert--success">
+                  <div>✓</div>
+                  <div>
+                    <div class="ui-alert__label">All recipients signed</div>
+                    <div class="ui-alert__body">
+                      The document is complete. You can download the executed copy or send a receipt.
+                    </div>
+                  </div>
+                </div>
+
+                <div class="ui-alert ui-alert--danger">
+                  <div>!</div>
+                  <div>
+                    <div class="ui-alert__label">Signature failed to save</div>
+                    <div class="ui-alert__body">
+                      The connection dropped while uploading the signature. Ask the signer to retry, or save their
+                      signature locally first.
+                    </div>
+                  </div>
+                </div>
+
+                <div class="ui-alert">
+                  <div>i</div>
+                  <div>
+                    <div class="ui-alert__label">Read-only mode</div>
+                    <div class="ui-alert__body">
+                      You opened an archived copy. To make changes, duplicate this document and work in the new copy.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="ui-card ui-card--muted">
+              <h3 class="ui-card__title">Status chips</h3>
+              <p class="ui-card__body">
+                Use compact chips to mark status in tables, queues, or a “Recent activity” panel.
+              </p>
+              <div class="ui-pill-row ui-mt-md">
+                <span class="ui-chip">
+                  <span class="ui-chip-dot"></span>
+                  Active
+                </span>
+                <span class="ui-chip">
+                  <span class="ui-chip-dot" style="background:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,0.25);"></span>
+                  Waiting on signer
+                </span>
+                <span class="ui-chip">
+                  <span class="ui-chip-dot" style="background:#ef4444;box-shadow:0 0 0 3px rgba(239,68,68,0.25);"></span>
+                  Blocked
+                </span>
+                <span class="ui-chip">
+                  <span class="ui-chip-dot" style="background:#64748b;box-shadow:0 0 0 3px rgba(148,163,184,0.25);"></span>
+                  Archived
+                </span>
+              </div>
+              <p class="ui-text-xs ui-text-soft ui-mt-sm">
+                Keep labels short and consistent: “Sent”, “Viewed”, “Signed”, “Declined” rather than full sentences.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="ui-section" id="table">
+          <div class="ui-section__header">
+            <div>
+              <p class="ui-section__kicker">Lists</p>
+              <h2 class="ui-section__title">Compact table pattern</h2>
+            </div>
+            <p class="ui-section__meta">
+              Use for queues of documents, recipients, or recent sessions.
+            </p>
+          </div>
+
+          <div class="ui-card ui-card--muted">
+            <div class="ui-table-shell">
+              <table class="ui-table">
+                <thead>
+                  <tr>
+                    <th>Document</th>
+                    <th>Owner</th>
+                    <th>Status</th>
+                    <th>Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Onboarding packet – ServiceLoop</td>
+                    <td>Brett</td>
+                    <td>
+                      <span class="ui-chip">
+                        <span class="ui-chip-dot"></span>
+                        Signed
+                      </span>
+                    </td>
+                    <td>2 minutes ago</td>
+                  </tr>
+                  <tr>
+                    <td>Gym camera install SOW</td>
+                    <td>Brett</td>
+                    <td>
+                      <span class="ui-chip">
+                        <span class="ui-chip-dot" style="background:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,0.25);"></span>
+                        Waiting on signer
+                      </span>
+                    </td>
+                    <td>Yesterday</td>
+                  </tr>
+                  <tr>
+                    <td>Clinic Wi-Fi remediation proposal</td>
+                    <td>Brett</td>
+                    <td>
+                      <span class="ui-chip">
+                        <span class="ui-chip-dot" style="background:#64748b;box-shadow:0 0 0 3px rgba(148,163,184,0.25);"></span>
+                        Draft
+                      </span>
+                    </td>
+                    <td>3 days ago</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="ui-text-xs ui-text-soft ui-mt-sm">
+              This is intentionally dense; pair it with a detail panel or drawer for editing the selected row.
+            </p>
+          </div>
+        </section>
+      </div>
+    </div>
+  </body>
+</html>
