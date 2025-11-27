@@ -43,16 +43,6 @@ See https://github.com/adobe-type-tools/cmap-resources
       <ui-toolbar>
         <ui-button variant="primary" id="tsSignPrimary">Sign</ui-button>
         <ui-button id="tsDownloadBtn">Download</ui-button>
-        <div class="ts-shell-controls">
-          <span class="ts-shell-controls-group">
-            <ui-button id="tsPrevPageBtn">◀</ui-button>
-            <ui-button id="tsNextPageBtn">▶</ui-button>
-          </span>
-          <span class="ts-shell-controls-group">
-            <ui-button id="tsZoomOutBtn">−</ui-button>
-            <ui-button id="tsZoomInBtn">+</ui-button>
-          </span>
-        </div>
         <ui-button id="tsCloseBtn">Close</ui-button>
       </ui-toolbar>
     </div>
@@ -1029,64 +1019,6 @@ See https://github.com/adobe-type-tools/cmap-resources
               window.history.back();
             } else {
               window.close();
-            }
-          });
-        }
-      });
-    })();
-  </script>
-
-
-  <script>
-    (function () {
-      function onReady(fn) {
-        if (document.readyState === "complete" || document.readyState === "interactive") {
-          setTimeout(fn, 0);
-        } else {
-          document.addEventListener("DOMContentLoaded", fn);
-        }
-      }
-      onReady(function () {
-        var prevBtn = document.getElementById("tsPrevPageBtn");
-        var nextBtn = document.getElementById("tsNextPageBtn");
-        var zoomOutBtn = document.getElementById("tsZoomOutBtn");
-        var zoomInBtn = document.getElementById("tsZoomInBtn");
-
-        function getApp() {
-          return window.PDFViewerApplication || window.PDFViewerApplicationInitializator;
-        }
-
-        function changePage(delta) {
-          var app = getApp();
-          if (!app || !app.page) return;
-          var newPage = app.page + delta;
-          if (newPage < 1 || (app.pdfDocument && newPage > app.pdfDocument.numPages)) return;
-          app.page = newPage;
-        }
-
-        if (prevBtn) {
-          prevBtn.addEventListener("click", function () {
-            changePage(-1);
-          });
-        }
-        if (nextBtn) {
-          nextBtn.addEventListener("click", function () {
-            changePage(1);
-          });
-        }
-        if (zoomOutBtn) {
-          zoomOutBtn.addEventListener("click", function () {
-            var app = getApp();
-            if (app && typeof app.zoomOut === "function") {
-              app.zoomOut();
-            }
-          });
-        }
-        if (zoomInBtn) {
-          zoomInBtn.addEventListener("click", function () {
-            var app = getApp();
-            if (app && typeof app.zoomIn === "function") {
-              app.zoomIn();
             }
           });
         }
