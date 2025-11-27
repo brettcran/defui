@@ -1,8 +1,62 @@
 <!doctype html>
-<meta charset="utf-8">
-<title>Not found — redirecting…</title>
-<script>
-  // Send unknown URLs to the viewer; keep hash to allow deep-links
-  var h = location.hash || "";
-  location.replace("/web/viewer.html" + h);
-</script>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Page not found – TurboSign</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+                     sans-serif;
+        background: #0b1120;
+        color: #e5e7eb;
+        display: flex;
+        min-height: 100vh;
+        align-items: center;
+        justify-content: center;
+      }
+      .wrap {
+        text-align: center;
+        padding: 2rem;
+      }
+      h1 {
+        font-size: clamp(2rem, 4vw, 2.75rem);
+        margin-bottom: 0.5rem;
+      }
+      p {
+        margin: 0.25rem 0;
+        color: #9ca3af;
+      }
+      .hint {
+        margin-top: 1.25rem;
+        font-size: 0.875rem;
+        opacity: 0.9;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Page not found</h1>
+      <p>Redirecting you to the TurboSign viewer…</p>
+      <p class="hint">If nothing happens, you can refresh your browser.</p>
+    </div>
+    <script>
+      // For unknown URLs on GitHub Pages, send users back to the viewer.
+      // Keep the hash so deep-links into the viewer continue to work.
+      (function () {
+        var h = window.location.hash || "";
+
+        // Compute a base path that works whether the site is at /
+        // or in a subdirectory such as /defui/.
+        var basePath = window.location.pathname.replace(/\/[^\/]*$/, "/");
+        if (!/\/$/.test(basePath)) {
+          basePath += "/";
+        }
+
+        window.location.replace(basePath + "web/viewer.html" + h);
+      })();
+    </script>
+  </body>
+</html>
